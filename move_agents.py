@@ -21,7 +21,7 @@ if filename == '':
 
 
 #ssl verification mode - change to false for lab servers without proper cert
-verify_ssl = False
+verify_ssl = True
 if not verify_ssl:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
