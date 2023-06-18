@@ -105,6 +105,7 @@ for hostname in hostnames:
             successful_move_counter += 1
         else:
             print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers, 'and payload', payload)
+            errors.append(hostname)
     counter += 1
 
 print('Successfully moved', successful_move_counter, 'devices.')
