@@ -82,7 +82,6 @@ else:
 
 		#resize columns to fit the data
 		for column in agents_df:
-			#column_width = 100
 			column_width = max(agents_df[column].astype(str).map(len).max(), len(column)) + 1
 			col_idx = agents_df.columns.get_loc(column)
 			writer.sheets['Airlock Agents'].set_column(col_idx, col_idx, column_width)
