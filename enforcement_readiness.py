@@ -64,11 +64,15 @@ def add_lastcheckin_days_ago(agents):
 	return agents
 
 def add_execution_counts(agents, intervals):
+	counter = 1
 	for agent in agents:
+		print('INFO: Gathering execution data for agent', counter, 'of', len(agents), agent['hostname'])
 		for interval in intervals:
+			print('\tLast', interval, 'days')
 			new_column = f'untrusted_executions_{str(interval)}_days'
 			execution_count = get_untrusted_execution_count(agent['hostname'], interval)     
 			agent[new_column] = execution_count
+		counter += 1
 	return agents
 	
 def move_df_column_to_position(df, column_name, new_position):
@@ -77,7 +81,9 @@ def move_df_column_to_position(df, column_name, new_position):
 	return df
 
 def add_audit_mode_to_group_list(groups):
+	counter = 1
 	for group in groups:
+		print('INFO: Analyzing group', counter, 'of', len(groups), group['name'])
 		request_url = f'{base_url}v1/group/policies'
 		payload = {'groupid': group['groupid']}
 		response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
@@ -90,6 +96,7 @@ def add_audit_mode_to_group_list(groups):
 		else:
 			print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 			sys.exit(0)
+		counter += 1
 	return groups
 
 def filter_group_list(groups, auditmode):
@@ -146,7 +153,7 @@ def main():
 	groups = filter_group_list(groups, auditmode=True)
 	print('INFO: Found', len(groups), 'groups with an Audit Mode policy on', server_fqdn)
 
-	group = choose_group(groups, 'Enter the Index of the group that you want to analyze for enforcement readiness: ')
+	group = choose_group(groups, '\nEnter the Index of the group that you want to analyze for enforcement readiness: ')
 
 	print('INFO: Getting list of agents in group', group['name'])
 	agents = get_agents(group)
@@ -174,8 +181,9 @@ def main():
 	print('INFO: Converting the data to a DateFrame for subsequent manipulation and export')
 	agents_df = pandas.DataFrame(agents)
 
-	print('INFO: Removing irrelevant columns')
-	agents_df.drop(['freespace', 'groupid', 'domain', 'ip', 'status', 'username'], axis=1, inplace=True)
+	columns_to_remove = ['freespace', 'groupid', 'domain', 'ip', 'status', 'username']
+	print('INFO: Removing irrelevant columns:', columns_to_remove)
+	agents_df.drop(columns_to_remove, axis=1, inplace=True)
 
 	print('INFO: Re-arranging columns')
 	agents_df = move_df_column_to_position(agents_df, 'hostname', 0)
@@ -186,7 +194,7 @@ def main():
 
 	print('INFO: Calculating file name for export')
 	file_name = f"airlock_enforcement_readiness_{server_fqdn}_{group['name']}_{datetime.datetime.today().strftime('%Y-%m-%d_%H.%M')}.xlsx"
-	print('INFO:', file_name)
+	print(f'\t{file_name}')
 
 	print('INFO: Exporting data to disk')
 	with pandas.ExcelWriter(file_name) as writer:
@@ -197,7 +205,7 @@ def main():
 			col_idx = agents_df.columns.get_loc(column)
 			writer.sheets['Enforcement Readiness'].set_column(col_idx, col_idx, column_width)
 
-	print('Done!')
+	print('Done.')
 
 
 #when the file is run (python filename.py), invoke the main() method
