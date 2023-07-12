@@ -54,7 +54,7 @@ for hash in hash_list:
     request_url = f'{base_url}v1/hash/add'
     payload = {'hashes': [
         {'sha256': hash, 
-         'path': f'c:\none\{hash}' #make a fake/placeholder path
+         'path': f'z:\\none\\{hash}' #make a fake/placeholder path
         }
     ]} 
     response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
