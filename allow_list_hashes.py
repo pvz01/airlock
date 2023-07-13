@@ -58,7 +58,7 @@ for hash in hash_list:
     request_url = f'{base_url}v1/hash/add'
     payload = {'hashes': [
         {'sha256': hash, 
-         'path': f'z:\\{hash}.imported' #make a fake/placeholder path and filename, in this case using the hash as the file name
+         'path': f'z:\\{hash}.imported' #make a fake/placeholder path and filename
         }
     ]} 
     response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
