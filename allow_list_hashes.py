@@ -20,11 +20,15 @@ api_key = 'yourapikey'
 applicationid = '0000000000'
 
 #define the list of hashes you want to allow list
-hash_list = (
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
-)
+hash_list = []
+
+#for testing/demo purposes, populate hash_list with random values
+#this block of code should be replaced for real-world usage with
+#something that populates hash_list with real file hashes, either
+#explicitly or by reading from some other data source or file on disk
+import hashlib, os
+for _ in range(10):
+    hash_list.append(hashlib.sha256(os.urandom(16)).hexdigest())
 
 #set ssl mode
 verify_ssl = False  #change to True for production
@@ -54,7 +58,7 @@ for hash in hash_list:
     request_url = f'{base_url}v1/hash/add'
     payload = {'hashes': [
         {'sha256': hash, 
-         'path': f'z:\\none\\{hash}' #make a fake/placeholder path
+         'path': f'z:\\{hash}.imported' #make a fake/placeholder path and filename, in this case using the hash as the file name
         }
     ]} 
     response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
