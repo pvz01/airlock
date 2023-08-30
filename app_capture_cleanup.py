@@ -18,6 +18,9 @@ headers = {'X-APIKey': 'api-key-here'}
 #set the list of file extensions for files that you want to remove
 extensions_to_remove = ['.py', '.pyi', '.pyc', '.pyd', '.pyo', '.pyw', '.pyz']
 
+#set the maximum quantity of deletions to send to server in a single operation
+chunk_size = 5000
+
 #set True/False whether to prompt for each application before making changes
 safety_check = True
 
@@ -84,9 +87,14 @@ for application in applications:
 		if user_response.lower() != 'yes':
 			continue  #go to next application
 	   
+	#break the list of removals in to smaller chunks before sending to server
+	sha256_remove_list_in_chunks = [sha256_remove[i:i+chunk_size] for i in range(0, len(sha256_remove), chunk_size)]
+	print('INFO: Removal will be done in', len(sha256_remove_list_in_chunks), 'batches of no more than', chunk_size, 'hashes each.')
+	
 	#execute the removal
-	print('INFO: Removing', len(sha256_remove), 'hashes from', application['name'])
-	request_url = base_url + '/v1/hash/application/remove'
-	payload = {'applicationid': application['applicationid'],
-			   'hashes': sha256_remove}
-	response = requests.post(request_url, headers=headers, json=payload, verify=False)
+	for sha256_list in sha256_remove_list_in_chunks:
+		print('INFO: Removing', len(sha256_list), 'hashes from', application['name'])
+		request_url = base_url + '/v1/hash/application/remove'
+		payload = {'applicationid': application['applicationid'],
+				   'hashes': sha256_list}
+		response = requests.post(request_url, headers=headers, json=payload, verify=False)
