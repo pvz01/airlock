@@ -31,8 +31,19 @@ if response.status_code != 200:
 groups = response.json()['response']['groups']
 print('INFO: Found', len(groups), 'groups on the server')
 
+#create a dictionary to map groupid to name
+group_mapping = {group['groupid']: group['name'] for group in groups}
+
+#update the group names with parent names
+for group in groups:
+    parent_name = group_mapping.get(group['parent'])
+    if parent_name:
+        group['name'] = f"{parent_name}\\{group['name']}"
+
 #add policy mode to groups list
-print('INFO: Checking policy mode (audit | enforcement) for the groups')
+print('INFO: Checking policymode (audit | enforcement) for the groups')
+print(f"{'policymode'.ljust(15, ' ')}\tgroupname")
+print('------------------------------------')
 for group in groups:
 	request_url = f'{base_url}v1/group/policies'
 	payload = {'groupid': group['groupid']}
@@ -42,15 +53,7 @@ for group in groups:
 		group['policymode'] = 'audit'
 	else:
 		group['policymode'] = 'enforcement'
-
-#create a dictionary to map groupid to name
-group_mapping = {group['groupid']: group['name'] for group in groups}
-
-#update the group names with parent names
-for group in groups:
-    parent_name = group_mapping.get(group['parent'])
-    if parent_name:
-        group['name'] = f"{parent_name}\\{group['name']}"
+	print(f"{group['policymode'].ljust(15, ' ')}\t{group['name']}")
         
 #ask user which group they want to export
 for index, item in enumerate(groups):
