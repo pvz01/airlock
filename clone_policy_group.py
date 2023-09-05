@@ -46,3 +46,4 @@ request_url = f'{base_url}/v1/group/assign'
 print('\nApplying the policies applied to', source_group['name'], 'to', target_group['name'])
 payload = {'groupid': source_group['groupid'],
            'targetgroupid': target_group['groupid']}
+response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
