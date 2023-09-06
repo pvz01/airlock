@@ -6,6 +6,8 @@
 #required libraries for interacting with REST API
 import requests
 import json
+
+#required library to exit script in case of critical error
 import sys
 
 #suppress ssl warnings if not using certificate verification
