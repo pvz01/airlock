@@ -11,7 +11,7 @@ import sys
 #prompt for configuration
 server_fqdn = input('Server fqdn: ')
 api_key = input('API key: ')
-filename = input('Create a plain text file with one hostname per line and place it in the working directory that you ran this script from. Enter name of that file here, or press return to accept the default (hostnames.txt): ')
+filename = input('Name of TXT file with list of hostnames to move: ')
 if filename == '':
 	filename = 'hostnames.txt'
 
