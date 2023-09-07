@@ -8,6 +8,10 @@ headers = {'X-APIKey': 'API-KEY'}
 import requests
 import json
 
+#suppress ssl warnings if not using certificate verification
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 #read group list
 request_url = f'{base_url}/v1/group'
 response = requests.post(request_url, headers=headers, verify=False)
@@ -47,3 +51,6 @@ print('\nApplying the policies applied to', source_group['name'], 'to', target_g
 payload = {'groupid': source_group['groupid'],
            'targetgroupid': target_group['groupid']}
 response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+
+#TODO: Consider additional additional code to copy over additional configuration
+#      such as group settings
