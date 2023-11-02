@@ -23,7 +23,6 @@ import requests
 import json
 import csv
 import datetime
-import dateutil
 
 # Suppress SSL warnings
 import urllib3
