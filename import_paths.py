@@ -3,59 +3,55 @@
 # Use this command to install prerequisites:
 #     pip install requests
 
-import requests, json, sys
+# Import required libraries
+import requests
+import json
+import sys
 
-#prompt for config
+# Suppress ssl warnings
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Prompt for configuration
 server_fqdn = input('Enter server fqdn: ')
-server_port = input('Enter server port, or press return to accept the default (3129): ')
-if server_port == '':
-	server_port = 3129
 api_key = input('Enter API key: ')
 filename = input('Create a plain text file with one path per line. Enter name of that file here, or press return to accept the default (paths.txt): ')
 if filename == '':
 	filename = 'paths.txt'
 
-#option to disable SSL certificate verification when running against a non-prod server
-is_lab_server = False
-if is_lab_server:
-	verify_ssl = False
-	import urllib3
-	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-else:
-	verify_ssl = True
+# Calculate base configuration used for requests to server
+base_url = 'https://' + server_fqdn + ':3129/'
+headers = {'X-APIKey': api_key}
 
-#read list of paths from disk
+# Read paths from input file on disk
 paths = []
 with open(filename, 'r') as file:
 	for line in file:
 		path = line.strip().strip('"').strip("'")
-		paths.append(path)
-if len(paths) < 1:
+		if len(path) > 0: #skips blank lines
+			paths.append(path)
+if not paths: #list is empty
 	print('ERROR: Unable to read paths from', filename)
 	sys.exit(0)
 print('INFO: Read', len(paths), 'paths from', filename)
 for path in paths:
 	 print(path)
 
-#calculate base configuration used for requests to server
-base_url = 'https://' + server_fqdn + ':' + str(server_port) + '/'
-headers = {'X-APIKey': api_key}
-
-#get list of groups
-request_url = f'{base_url}v1/group'
+# Get list of groups
+request_url = base_url + 'v1/group'
 print('INFO: Getting list of groups from the server')
-response = requests.post(request_url, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, headers=headers, verify=False)
 if response.status_code != 200:
 	print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 	sys.exit(0)
 groups = response.json()['response']['groups']
 print('INFO: Found', len(groups), 'groups on the server')
 
-#ask user which group they want to add the paths to
+# Ask user which group they want to add the paths to
 for index, item in enumerate(groups):
-	print(f'{index}: {item["name"]} ({item["groupid"]}) (Parent: {item["parent"]})')
+	print(f'{index+1}: {item["name"]} ({item["groupid"]}) (Parent: {item["parent"]})')
 group_selection = input('Which group do you want to add the Path Exclusions to? ')
-group = groups[int(group_selection)]
+group = groups[int(group_selection)-1]
 print('INFO: You chose', group)
 payload = {'groupid': group['groupid']}
 
@@ -65,12 +61,16 @@ if proceed.lower() != 'yes':
 	sys.exit(0)
 
 #add the paths to the selected group
-request_url = f'{base_url}v1/group/path/add'
+request_url = base_url + 'v1/group/path/add'
+errors = []
+successes = []
 for path in paths:
 	payload['path'] = path
-	response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
-	if response.status_code != 200:
-		print('ERROR: Unexpected return code', response.status_code, 'on POST to', request_url, 'with headers', headers, 'and payload', payload)
-		sys.exit(0)
+	response = requests.post(request_url, headers=headers, json=payload, verify=False)
+	if response.status_code == 200:
+		print('INFO: Successfully added', path, 'to group', payload['groupid'])
+		successes.append(path)
 	else:
-		print('INFO: Successfully added', payload['path'], 'to group', payload['groupid'])
+		print('ERROR: Unexpected return code', response.status_code, 'on POST', request_url, 'with headers', headers, 'and payload', payload)
+		errors.append(path)
+print('\nDone.', len(successes), 'paths were successfully imported:\n', json.dumps(successes, indent=4), '\nand', len(errors), 'errors occured:\n', json.dumps(errors, indent=4))
