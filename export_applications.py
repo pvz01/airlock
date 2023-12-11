@@ -11,6 +11,18 @@ import json
 base_url = 'https://fqdn-of-server:3129'
 headers = {'X-APIKey': 'api-key-here'}
 
+#if configuration was not provided in-line above, prompt for it
+if base_url == 'https://fqdn-of-server:3129':
+    server_name = input('Name or IP address of Airlock Server: ')
+    base_url = 'https://' + server_name + ':3129'
+if headers['X-APIKey'] == 'api-key-here':
+    api_key = input('API Key: ')
+    headers['X-APIKey'] = api_key
+
+#suppress SSL warnings
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 #get list of appplications
 request_url = base_url + '/v1/application'
 response = requests.post(request_url, headers=headers, verify=False)
