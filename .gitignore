@@ -3,3 +3,5 @@
 *.xlsx
 *.csv
 *.txt
+*.json
+*.env
