@@ -26,7 +26,8 @@
 
 config_file_name = 'alc_msp_event_summary_email_forwarder.json'
 
-# ---CONFIG FILE TEMPLATE --- '''
+# ---CONFIG FILE TEMPLATE --- 
+'''
 {
     "server_name": "au.appenforcement.com",
     "api_key": "your-airlock-cloud-api-key",
@@ -58,7 +59,7 @@ config_file_name = 'alc_msp_event_summary_email_forwarder.json'
         "dashboard_base_url": "https://portal.au.appenforcement.com"
     }
 }
-
+'''
 # --- EVENT TYPE KEY (USE WHEN CONFIGURING EVENT_TYPES ARRAY IN CONFIG FILE) ---
 '''
 Note: When setting the event type array in the configuration file, use the numeric values shown below
