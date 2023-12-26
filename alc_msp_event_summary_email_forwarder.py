@@ -102,10 +102,10 @@ def write_config(config):
 def get_events(server_name, api_key, event_types, directoryid, tenantid, checkpoint):
 	request_url = 'https://' + server_name + '/willard/v1/logging/exechistories'
 	request_headers = {
-						'UserApiKey': api_key,
-						'directoryid': directoryid,
-						'tenantID': tenantid,
-						}
+			'UserApiKey': api_key,
+			'directoryid': directoryid,
+			'tenantID': tenantid,
+			}
 	request_body = {'type': event_types}
 	collected_data = []
 	while True:
@@ -180,8 +180,8 @@ def convert_to_html_table(top_10_md5):
 	return html
 
 #returns current datetime in human-readable format
-def now():
-	return datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+def now(format='%Y-%m-%d %H:%M UTC'):
+	return datetime.datetime.now(datetime.timezone.utc).strftime(format)
 
 #generates html for email body based on collected data
 def generate_email_body_html(tenants_data, dashboard_base_url):
@@ -276,24 +276,24 @@ def main():
 			tenant['previous_iteration_datetime'] = 'the creation of the tenant'
 
 		#get event data for this tenant
-		exechistory = get_events(	config['server_name'], 
-									config['api_key'], 
-									config['event_types'], 
-									tenant['directoryid'], 
-									tenant['Tenantid'], 
-									tenant['checkpoint']
-								)
+		exechistory = get_events(config['server_name'], 
+					config['api_key'], 
+					config['event_types'], 
+					tenant['directoryid'], 
+					tenant['Tenantid'], 
+					tenant['checkpoint']
+					)
 		
 		#print('DEBUG: Found', len(exechistory), 'events for tenant', tenant['name'], 'using checkpoint', tenant['checkpoint'])
 
 		#create dictionary with a summary of data collected for this tenant
 		this_tenant_data = {	'tenant_name': tenant['name'],
-								'tenant_id': tenant['Tenantid'],
-								'datetime_start': tenant['previous_iteration_datetime'],
-								'datetime_end': now(),
-								'event_count': len(exechistory),
-								'event_summary': get_top_10_md5_with_filenames(exechistory)				
-							}
+					'tenant_id': tenant['Tenantid'],
+					'datetime_start': tenant['previous_iteration_datetime'],
+					'datetime_end': now(),
+					'event_count': len(exechistory),
+					'event_summary': get_top_10_md5_with_filenames(exechistory)				
+					}
 
 		#if we found one or more rows of data, increment the checkpoint on the tenant
 		if len(exechistory) > 0:
