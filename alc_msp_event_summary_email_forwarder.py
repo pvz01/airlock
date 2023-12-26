@@ -5,8 +5,8 @@
 # previous iteration.
 #
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
-# Version: 1.0.1
-# Last updated: 2023-12-20
+# Version: 1.1
+# Last updated: 2023-12-26
 #
 # The script maintains persistence in configuration using a JSON file on disk, enabling
 # you to run the script ad-hoc or using a scheduler of your choice (cron job, Windows
@@ -89,12 +89,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) #suppress ss
 def read_config():
 	with open(config_file_name, 'r') as file:
 		config = json.load(file)
-	#print('DEBUG: Read config from', config_file_name, json.dumps(config, indent=4))
 	return config
 
 #writes config dictionary to disk as json file
 def write_config(config):
-	#print('DEBUG: Writing config to', config_file_name)
 	with open(config_file_name, 'w') as file:
 		json.dump(config, file, indent=4)
 
@@ -125,33 +123,54 @@ def get_events(server_name, api_key, event_types, directoryid, tenantid, checkpo
 def get_vt_link(md5):
 	base_url = 'https://www.virustotal.com/gui/search/'
 	full_url = base_url + md5
-	html_code = f'<a href={full_url}>{md5}</a>'
+	html_code = f'<a href={full_url}>VT</a>'
+	return html_code
+
+#converts a file hash into HTML code which is a clickable link to the Airlock repository entry
+def get_repo_link(tenant_id, dashboard_base_url, sha256):
+	full_url = dashboard_base_url + '/tenant/' + tenant_id + '/repository?SHA256=' + sha256
+	html_code = f'<a href={full_url}>ALD</a>'
 	return html_code
 
 #converts a tenant id into a clickable link into the dashboard
-def get_tenant_link(tenant_id, dashboard_base_url):
+def get_tenant_link(tenant_name, tenant_id, dashboard_base_url):
 	full_url = dashboard_base_url + '/tenant/' + tenant_id + '/dashboard'
-	html_code = f'<a href={full_url}>{tenant_id}</a>'
+	html_code = f'<a href={full_url}>{tenant_name}</a>'
 	return html_code
 
 #converts list of events into an list of (up to) 10 tuples which shows the most common files
 #in descending order as determined by event count based on md5 along with the most common 
-#fully-qualified name of each
-def get_top_10_md5_with_filenames(events):
+#fully-qualified name, the sha265, and the number of unique hostnames for each
+def get_top_10_md5_with_filenames_and_sha256(events):
 	md5_counts = {}
 	md5_to_filenames = {}
+	md5_to_sha256 = {}
+	md5_to_hostnames = {}
 
-	# Count the frequency of each MD5 and track filenames for each MD5
+	# Count the frequency of each MD5 and track filenames, sha256, and hostnames for each MD5
 	for event in events:
 		md5 = event.get('md5')
 		filename = event.get('filename')
+		sha256 = event.get('sha256')
+		hostname = event.get('hostname')
 
 		if md5:
 			md5_counts[md5] = md5_counts.get(md5, 0) + 1
+
 			if filename:
 				if md5 not in md5_to_filenames:
 					md5_to_filenames[md5] = {}
 				md5_to_filenames[md5][filename] = md5_to_filenames[md5].get(filename, 0) + 1
+
+			if sha256:
+				if md5 not in md5_to_sha256:
+					md5_to_sha256[md5] = {}
+				md5_to_sha256[md5][sha256] = md5_to_sha256[md5].get(sha256, 0) + 1
+
+			if hostname:
+				if md5 not in md5_to_hostnames:
+					md5_to_hostnames[md5] = set()
+				md5_to_hostnames[md5].add(hostname)
 
 	# Sort MD5 values by frequency and get the top 10
 	sorted_md5 = sorted(md5_counts.items(), key=lambda x: x[1], reverse=True)
@@ -161,19 +180,40 @@ def get_top_10_md5_with_filenames(events):
 		# Find the most popular filename for each MD5
 		filenames = md5_to_filenames.get(md5, {})
 		most_popular_filename = max(filenames, key=filenames.get, default=None)
-		top_10_md5.append([md5, count, most_popular_filename])
+
+		# Find the most popular sha256 for each MD5
+		sha256s = md5_to_sha256.get(md5, {})
+		most_popular_sha256 = max(sha256s, key=sha256s.get, default=None)
+
+		# Count the number of unique hostnames for each MD5
+		unique_hostnames_count = len(md5_to_hostnames.get(md5, set()))	
+
+		top_10_md5.append([md5, count, most_popular_filename, most_popular_sha256, unique_hostnames_count])
 
 	return top_10_md5
 
 #converts list of tuples for the most common files in a tenant into an HTML table including clickable VT links
-def convert_to_html_table(top_10_md5):
+def convert_to_html_table(top_10_md5, dashboard_base_url, tenant_id):
+
 	# Start the HTML table with headers
-	html = '<table border="1"><tr><th><b>md5</b></th><th><b>count</b></th><th><b>most_popular_filename</b></th></tr>'
+	html = '<table border="1"><tr>'
+	html += '<th><b>MD5</b></th>'
+	html += '<th><b>Events</b></th>'
+	html += '<th><b>Hostnames</b></th>'
+	html += '<th><b>File Path</b></th>'
+	html += '<th><b>More Info</b></th>'
+	html += '</tr>'
 
 	# Add rows for each tuple in the top_10_md5 list
-	for md5, count, filename in top_10_md5:
-		html += f'<tr><td>{get_vt_link(md5)}</td><td>{count}</td><td>{filename}</td></tr>'
-
+	for md5, event_count, filename, sha256, hostnames_count in top_10_md5:
+		html += '<tr>'
+		html += f'<td>{md5}</td>'
+		html += f'<td>{event_count}</td>'
+		html += f'<td>{hostnames_count}</td>'
+		html += f'<td>{filename}</td>'
+		html += f'<td>{get_vt_link(md5)} | {get_repo_link(tenant_id, dashboard_base_url, sha256)}</td>'
+		html += '</tr>'
+	
 	# Close the table tag
 	html += '</table>'
 
@@ -186,7 +226,7 @@ def now(format='%Y-%m-%d %H:%M UTC'):
 #generates html for email body based on collected data
 def generate_email_body_html(tenants_data, dashboard_base_url):
 	# Initialize the HTML string
-	html_content = "The below is a summary of recent Airlock Cloud events for your tenants."
+	html_content = f'The below is a summary of recent Airlock Cloud events for each of your {len(tenants_data)} tenants.'
 
 	# Iterate through each tenant's data
 	for tenant in tenants_data:
@@ -196,20 +236,20 @@ def generate_email_body_html(tenants_data, dashboard_base_url):
 		event_summary = tenant['event_summary']
 
 		# Convert the event summary to an HTML table
-		event_table_html = convert_to_html_table(event_summary)
+		event_table_html = convert_to_html_table(event_summary, dashboard_base_url, tenant_id)
 
 		# Convert the tenant id to a clickable link
-		tenant_id_clickable = get_tenant_link(tenant_id, dashboard_base_url)
+		tenant_link = get_tenant_link(tenant_name, tenant_id, dashboard_base_url)
 
 		# Add the tenant-specific information to the HTML content
 		html_content += f"""
-		<p><strong>{tenant_name}</strong> ({tenant_id_clickable}) had <strong>{event_count}</strong> events between {tenant['datetime_start']} and {tenant['datetime_end']}.
+		<p>{tenant_link} had <strong>{event_count}</strong> events between {tenant['datetime_start']} and {tenant['datetime_end']}.
 		"""
 
 		# If one or more events occured, add details
 		if event_count > 0:
 			html_content += f"""
-			 The most common files were:
+			 The most common files generating events in this tenant were:
 			{event_table_html}
 			"""
 		
@@ -252,9 +292,6 @@ def send_mail(collected_data, mail_config):
 			]
 		}
 		response = sg.client.mail.send.post(request_body=data)
-		#print(response.status_code)
-		#print(response.body)
-		#print(response.headers)
 
 
 # -- DEFINE THE MAIN METHOD USED AT RUNTIME --
@@ -284,29 +321,24 @@ def main():
 					tenant['checkpoint']
 					)
 		
-		#print('DEBUG: Found', len(exechistory), 'events for tenant', tenant['name'], 'using checkpoint', tenant['checkpoint'])
-
 		#create dictionary with a summary of data collected for this tenant
 		this_tenant_data = {	'tenant_name': tenant['name'],
 					'tenant_id': tenant['Tenantid'],
 					'datetime_start': tenant['previous_iteration_datetime'],
 					'datetime_end': now(),
 					'event_count': len(exechistory),
-					'event_summary': get_top_10_md5_with_filenames(exechistory)				
+					'event_summary': get_top_10_md5_with_filenames_and_sha256(exechistory)				
 					}
 
 		#if we found one or more rows of data, increment the checkpoint on the tenant
 		if len(exechistory) > 0:
 			tenant['checkpoint'] = exechistory[len(exechistory)-1]['checkpoint']
-			#print('DEBUG: The new checkpoint for this tenant is', tenant['checkpoint'])
 
 		#save the ending datetime for reporting next time this script runs
 		tenant['previous_iteration_datetime'] = this_tenant_data['datetime_end']
 
 		#append the summary of data for this tenant to the collected data list
 		collected_data.append(this_tenant_data)
-
-	#print('DEBUG: Done collecting data. Results:\n', json.dumps(collected_data, indent=4))
 
 	#send emails with collected data
 	send_mail(collected_data, config['email'])
