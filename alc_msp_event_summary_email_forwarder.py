@@ -25,6 +25,7 @@
 # errors.
 
 config_file_name = 'alc_msp_event_summary_email_forwarder.json'
+debug_mode = False
 
 # ---CONFIG FILE TEMPLATE --- 
 '''
@@ -298,13 +299,17 @@ def send_mail(collected_data, mail_config):
 def main():
 	
 	#read configuraiton from JSON on disk
+	if debug_mode: print('Attempting to read configuration file', config_file_name)
 	config = read_config()
+	if debug_mode: print('Value of config is now:\n', json.dumps(config, indent=4))
 
 	#establish a list to store collected data
 	collected_data = []
 
 	#iterate through the tenant list
+	if debug_mode: print('Beginning to iterate through the tenant list and collect data')
 	for tenant in config['tenants']:
+		if debug_mode: print('Processing tenant', tenant)
 
 		#if this is new tenant added to config file, add baseline configuration for it
 		if 'checkpoint' not in tenant.keys():
@@ -313,6 +318,7 @@ def main():
 			tenant['previous_iteration_datetime'] = 'the creation of the tenant'
 
 		#get event data for this tenant
+		if debug_mode: print('Calling get_events')
 		exechistory = get_events(config['server_name'], 
 					config['api_key'], 
 					config['event_types'], 
@@ -320,8 +326,10 @@ def main():
 					tenant['Tenantid'], 
 					tenant['checkpoint']
 					)
-		
+		if debug_mode: print('The get_events method returned', len(exechistory), 'rows of data for this tenant')
+
 		#create dictionary with a summary of data collected for this tenant
+		if debug_mode: print('Building this_tenant_data')
 		this_tenant_data = {	'tenant_name': tenant['name'],
 					'tenant_id': tenant['Tenantid'],
 					'datetime_start': tenant['previous_iteration_datetime'],
@@ -329,6 +337,7 @@ def main():
 					'event_count': len(exechistory),
 					'event_summary': get_top_10_md5_with_filenames_and_sha256(exechistory)				
 					}
+		if debug_mode: print('This is the data for this tenant:\n', json.dumps(this_tenant_data, indent=4))
 
 		#if we found one or more rows of data, increment the checkpoint on the tenant
 		if len(exechistory) > 0:
@@ -339,11 +348,17 @@ def main():
 
 		#append the summary of data for this tenant to the collected data list
 		collected_data.append(this_tenant_data)
+	if debug_mode: print('Done iterating through the tenant list and collecting data')
+
+	if debug_mode: print('\nThis is the collected data which will be used for generating emails:\n', json.dumps(collected_data, indent=4))
 
 	#send emails with collected data
+	if debug_mode: print('\nAttempting to send e-mail(s) using this configuration:\n', config['email'])
 	send_mail(collected_data, config['email'])
 
 	#write configuration
+	if debug_mode: print('Atempting to write the configuration shown below to disk as', config_file_name)
+	if debug_mode: print(json.dumps(config, indent=4))
 	write_config(config)
 
 
