@@ -99,6 +99,7 @@ def write_config(config):
 
 #gets new events from server for a tenant
 def get_events(server_name, api_key, event_types, directoryid, tenantid, checkpoint):
+	if debug_mode: print('Entering the get_events method')
 	request_url = 'https://' + server_name + '/willard/v1/logging/exechistories'
 	request_headers = {
 			'UserApiKey': api_key,
@@ -109,15 +110,27 @@ def get_events(server_name, api_key, event_types, directoryid, tenantid, checkpo
 	collected_data = []
 	while True:
 		request_body['checkpoint'] = checkpoint
+		if debug_mode: print('Making HTTP POST to', request_url, 'with headers', request_headers, 'and body', request_body)
 		response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+		if debug_mode: print('Status code on response was', response.status_code)
+		if debug_mode: print('Extracting exechistories from response')
 		exechistories = response.json()['response']['exechistories']
+		if debug_mode: print('Length of exechistories extracted is', len(exechistories))
 		collected_data += exechistories
 		if len(exechistories) == 10000:
 			#large data set, first 10K returned, need to go back and ask for the rest
+			if debug_mode: print('Since we got 10000 records, extracting checkpoing on the last')
 			checkpoint = exechistories[9999]['checkpoint']
+			if debug_mode: print('Checkpoint is now', checkpoint)
 		else:
 			# We have all the data. Exit the while loop.
+			if debug_mode: print('Since we got less than 10000 records, we have all the data and can exit the while loop')
 			break
+	if debug_mode:
+		print('Ready to exit the get_events method. The returned value (collected_data) has', len(collected_data), 'rows')
+		if len(collected_data) > 0:
+			print('First row:', json.dumps(collected_data[0]))
+			print('Last row:', json.dumps(collected_data[(len(collected_data)-1)], indent=4))
 	return collected_data
 
 #converts a file hash into a HTML code which is a clickable link to VT search
