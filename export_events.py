@@ -67,20 +67,27 @@ print('BODY:   ', body)
 response = requests.post(url, headers=headers, json=body, verify=False)
 print(response)
 exechistory = response.json()['response']['exechistory']
-print(len(exechistory), 'records returned')
 
-# De-duplicate data based on file hash
-if config['unique_files_only']:
-    unique_events = {}
-    for event in exechistory:
-        sha256 = event['sha256']
-        if sha256 not in unique_events:
-            unique_events[sha256] = event
-    exechistory = list(unique_events.values())
-    print(len(exechistory), 'records remain after de-duplication')
+if exechistory is None:
+    print('No records returned')
+    
+else:
+    print(len(exechistory), 'records returned')
 
-# Export data to disk
-file_name = f"airlock_events_{config['server_name'].replace('.','-')}_{datetime.datetime.today().strftime('%Y-%m-%d_%H.%M')}.xlsx"
-print('Exporting data to', file_name)
-exechistory_df = pandas.DataFrame(exechistory)
-exechistory_df.to_excel(file_name, index=False)
+    # De-duplicate data based on file hash
+    if config['unique_files_only']:
+        print('De-duplicating records based on sha256')
+        unique_events = {}
+        for event in exechistory:
+            sha256 = event['sha256']
+            if sha256 not in unique_events:
+                unique_events[sha256] = event
+        exechistory = list(unique_events.values())
+        print(len(exechistory), 'records remain after de-duplication')
+
+    # Export data to disk
+    file_name = f"airlock_events_{config['server_name'].replace('.','-')}_{datetime.datetime.today().strftime('%Y-%m-%d_%H.%M')}.xlsx"
+    print('Exporting data to', file_name)
+    exechistory_df = pandas.DataFrame(exechistory)
+    exechistory_df.to_excel(file_name, index=False)
+    print('Done')
