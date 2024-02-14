@@ -1,5 +1,5 @@
 # generate_importable_paths_xml.py
-# Version: 2.0
+# Version: 1.0
 # Last updated: 2024-02-14
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
 
