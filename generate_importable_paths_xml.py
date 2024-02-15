@@ -6,8 +6,9 @@
 '''
 This is a simple utility for creating XML files which are importable in the Airlock
 management console GUI under "Policies > [select a policy] > Paths > [right click] >
-Import XML" based on a list of paths that you either type into the command prompt
-window or (much more commonly) paste in from a text file or spreadsheet.
+Import XML" based on a list of paths that you either type/paste into the command prompt
+window or read from a text file on disk.
+
 Given the challenges with directly supporting CDATA in xml.etree.ElementTree and the 
 difficulty with string replacement (believe me, I tried!) I took a very manual
 approach in building the XML content so thateach path is wrapped in a CDATA section
