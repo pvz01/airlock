@@ -1,5 +1,5 @@
 # generate_importable_paths_xml.py
-# Version: 1.0
+# Version: 1.1
 # Last updated: 2024-02-14
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
 
@@ -62,11 +62,40 @@ def prompt_for_paths():
     print('\nDone collecting paths. This is what was entered:\n', paths_list)
     return paths_list
 
+# Method to read a list of paths from a text file on disk
+def read_txt_from_disk(file_name):
+    paths_list = []
+    print('\nReading paths from', file_name)
+    with open(file_name, 'r') as file:
+        for line in file:
+            path = line.strip().strip('"').strip("'")
+            if len(path) > 0: #skips blank lines
+                paths_list.append(path)
+    print('\nDone collecting paths. This is what was imported:\n', paths_list)
+    return paths_list
+
+# Method to determine which mode to run in based on user input
+def get_mode():
+    print('This script works in two modes\nA. Read paths from a TXT file on disk\nB. Type or paste paths into command shell')
+    user_input = input('Enter either A or B to select the mode you want to use: ')
+    if user_input.lower() == 'a':
+        return 'txt'
+    elif user_input.lower() == 'b':
+        return 'paste'
+    
 # Main method that gets invoked at runtime
 def main():
 
-    # Get the list of paths
-    paths_list = prompt_for_paths()
+    mode = get_mode()
+
+    if mode == 'paste':
+        paths_list = prompt_for_paths()
+    
+    elif mode == 'txt':
+        file_name = input('\nEnter file name to import from, or press return to use the default (paths.txt): ')
+        if file_name == '':
+            file_name = 'paths.txt'
+        paths_list = read_txt_from_disk(file_name)
     
     # Convert list of paths to XML
     paths_xml = paths_to_xml(paths_list)
