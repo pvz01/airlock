@@ -90,7 +90,7 @@ def read_xlsx_from_disk(file_name):
 def get_mode():
     print('This script works in three modes\nA. Read paths from a TXT file on disk\nB. Type or paste paths into command shell\nC. Read paths from an XLSX',
     'file on disk')
-    user_input = input('Enter either A or B to select the mode you want to use: ')
+    user_input = input('Enter the letter representing the mode you want to use: ')
     if user_input.lower() == 'a':
         return 'txt'
     elif user_input.lower() == 'b':
