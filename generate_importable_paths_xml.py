@@ -1,13 +1,13 @@
 # generate_importable_paths_xml.py
-# Version: 1.1
-# Last updated: 2024-02-14
+# Version: 1.2
+# Last updated: 2024-02-15
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
 
 '''
 This is a simple utility for creating XML files which are importable in the Airlock
 management console GUI under "Policies > [select a policy] > Paths > [right click] >
 Import XML" based on a list of paths that you either type/paste into the command prompt
-window or read from a text file on disk.
+window or read from a text or OOXML Excel file on disk.
 
 Given the challenges with directly supporting CDATA in xml.etree.ElementTree and the 
 difficulty with string replacement (believe me, I tried!) I took a very manual
@@ -75,14 +75,28 @@ def read_txt_from_disk(file_name):
     print('\nDone collecting paths. This is what was imported:\n', paths_list)
     return paths_list
 
+# Method to read a list of paths from an Excel file on disk
+def read_xlsx_from_disk(file_name):
+    import pandas
+    df = pandas.read_excel(file_name, sheet_name=0)
+    records = df.to_dict('records')
+    paths_list = []
+    for record in records:
+        path = record['File - File Path'] + record['File - File Name']
+        paths_list.append(path)
+    return paths_list
+
 # Method to determine which mode to run in based on user input
 def get_mode():
-    print('This script works in two modes\nA. Read paths from a TXT file on disk\nB. Type or paste paths into command shell')
+    print('This script works in three modes\nA. Read paths from a TXT file on disk\nB. Type or paste paths into command shell\nC. Read paths from an XLSX',
+    'file on disk')
     user_input = input('Enter either A or B to select the mode you want to use: ')
     if user_input.lower() == 'a':
         return 'txt'
     elif user_input.lower() == 'b':
         return 'paste'
+    elif user_input.lower() == 'c':
+        return 'excel'
     
 # Main method that gets invoked at runtime
 def main():
@@ -97,6 +111,14 @@ def main():
         if file_name == '':
             file_name = 'paths.txt'
         paths_list = read_txt_from_disk(file_name)
+    
+    elif mode == 'excel':
+        print('\nNote: The mode you selected reads an Excel workbook and combines the data in columns labeled',
+              '"File - File Path" and "File - File Name" in the first sheet to create path values.')
+        file_name = input('\nEnter file to import from, or press return to use the default (paths.xlsx): ')
+        if file_name == '':
+            file_name = 'paths.xlsx'
+        paths_list = read_xlsx_from_disk(file_name)       
     
     # Convert list of paths to XML
     paths_xml = paths_to_xml(paths_list)
