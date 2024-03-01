@@ -7,3 +7,4 @@
 *.env
 *.yaml
 *.xml
+.DS_Store
