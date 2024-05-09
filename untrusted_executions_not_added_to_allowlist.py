@@ -1,12 +1,18 @@
 # Example of how to use /logging/exechistories to get events then query the unique hashes from those
 # events using /hash/query and work out which have not been added to any allowlist (formerly application).
+#
+# Includes configuration parameter to optionally ignore signed files from a hash perspective, and instead 
+# build a list of all unique publisher names which can then be reviewed and compared to publisher approvals
+# in your policy(s).
+#
 # As written, this example has no logic to determine if the allowlist(s) containing the hashes have been added
-# to the relevant policy(s) (or any policy at all) and also has no logic to example publisher approvals,
-# path exclusions, trusted [grand]parent processes, and allowlist metadata rules.
+# to the relevant policy(s) (or any policy at all) and also has no logic which considers the impact of path
+# exclusions, trusted [grand]parent processes, and allowlist metadata rules.
 
 # set config parameters here
 airlock_server = 'foo.ci.managedwhitelisting.com'
 api_key = 'bar'
+ignore_signed_files = True
 
 # import required libraries
 import requests
@@ -40,6 +46,10 @@ event_search_parameters = {
 #establish a list to store hashes identified as not being in any allowlist
 collected_sha256_list_not_in_any_allowlist = []
 
+#if configuration option to ignore signed files is enabled, establish list to track publishers for ignored files
+if ignore_signed_files:
+    publisher_list = []
+
 # enter a while loop, where we will get events and process then in batches of (up to) 10000
 while True:
     print('\nQuerying server for events with checkpoint >', event_search_parameters['checkpoint'], '.')
@@ -63,18 +73,25 @@ while True:
     for result in hash_query_results:
         if 'data' not in result.keys():
             sha256_list_not_in_any_allowlist.append(result['sha256'])
-        elif 'applications' not in result['data'].keys():
-            sha256_list_not_in_any_allowlist.append(result['sha256'])
         elif result['data']['applications'] is None:
-            sha256_list_not_in_any_allowlist.append(result['sha256'])
+            if result['data']['publisher'] == 'Not Signed':
+                sha256_list_not_in_any_allowlist.append(result['sha256'])
+            elif not ignore_signed_files:
+                sha256_list_not_in_any_allowlist.append(result['sha256'])
+            elif result['data']['publisher'] not in publisher_list:
+                publisher_list.append(result['data']['publisher'])             
             
     print('Found', len(sha256_list_not_in_any_allowlist), 'sha256 values from this set of that have not been added to any Allowlist (formerly known as Application).')
+    if ignore_signed_files:
+        print('Signed files have been excluded.')
 
     # add the newly-found hashes into the master list
     for hash in sha256_list_not_in_any_allowlist:
         if hash not in collected_sha256_list_not_in_any_allowlist:
             collected_sha256_list_not_in_any_allowlist.append(hash)
     print('So far we have found', len(collected_sha256_list_not_in_any_allowlist), 'total unique hashes that have generated an event but are not in an allowlist.')
+    if ignore_signed_files:
+        print('Signed files have been excluded, but we have built a list of', len(publisher_list), 'unique publishers.')
         
     if len(exechistories) == 10000:
         new_checkpoint = exechistories[len(exechistories)-1]['checkpoint']
@@ -89,7 +106,7 @@ print('\nDone collecting and analyzing data. We identified a grand total of',
       'hashes that appeared in one or more events matching the provided search parameters',
       'and have not been added to any allowlist.'
      )
-        
+  
 #write the list to a text file on disk
 file_name = 'untrusted_execution_sha256_not_added_to_any_allowlist.txt'
 print('\nWriting results to disk as', file_name)
@@ -97,3 +114,13 @@ with open(file_name, 'w') as file:
     for hash_str in collected_sha256_list_not_in_any_allowlist:
         file.write(hash_str + '\n')
 print('The list of', len(collected_sha256_list_not_in_any_allowlist), 'hashes was written to disk as', file_name)
+
+#write list of publishers to disk
+if ignore_signed_files:
+    print('\nAlso identified', len(publisher_list), 'unique publishers, for which the associated files were ignored due to ignore_signed_files being set to True.')
+    file_name = 'untrusted_execution_publisher_list.txt'
+    print('Writing these to disk as', file_name)
+    with open(file_name, 'w') as file:
+        for publisher_str in publisher_list:
+            file.write(publisher_str + '\n')
+    print('The list of', len(publisher_list), 'publishers was written to disk as', file_name)
