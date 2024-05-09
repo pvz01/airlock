@@ -85,15 +85,15 @@ while True:
         break
         
 print('\nDone collecting and analyzing data. We identified a grand total of', 
-      len(sha256_list_not_in_any_allowlist), 
+      len(collected_sha256_list_not_in_any_allowlist), 
       'hashes that appeared in one or more events matching the provided search parameters',
       'and have not been added to any allowlist.'
      )
         
 #write the list to a text file on disk
-file_name = 'sha256_list_not_in_any_allowlist.txt'
+file_name = 'untrusted_execution_sha256_not_added_to_any_allowlist.txt'
 print('\nWriting results to disk as', file_name)
 with open(file_name, 'w') as file:
-    for hash_str in sha256_list_not_in_any_allowlist:
+    for hash_str in collected_sha256_list_not_in_any_allowlist:
         file.write(hash_str + '\n')
-print('The list of', len(sha256_list_not_in_any_allowlist), 'hashes was written to disk as', file_name)
+print('The list of', len(collected_sha256_list_not_in_any_allowlist), 'hashes was written to disk as', file_name)
