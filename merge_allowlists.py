@@ -37,7 +37,7 @@ index = int(user_input)-1
 allowlist_source = allowlists[index]
 
 #prompt to choose destination allowlist
-user_input = input('\nWhich allowlist do you want to move hashes to (destination? ')
+user_input = input('\nWhich allowlist do you want to move hashes to (destination)? ')
 index = int(user_input)-1
 allowlist_destination = allowlists[index]
 
