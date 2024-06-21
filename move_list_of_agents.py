@@ -41,6 +41,7 @@ if response.status_code != 200:
 	print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 	sys.exit(0)
 groups = response.json()['response']['groups']
+print('INFO: Successfully queried', airlock_server, 'and found list of', len(groups), 'groups')
 
 #find the destination group
 destination_group = None
@@ -48,21 +49,25 @@ for group in groups:
 	if group['name'].lower() == group_name.lower():
 		destination_group = group
 if destination_group is None:
-	print('ERROR: unable to find a group with name', group_name, 'to move the devices to')
+	print('ERROR: There is not a group with name', f"'{group_name}'", 'to move the devices to. Groups that do exist:')
+	for group in groups:
+		print('\t', group['name'])
 	sys.exit(0)
+else:
+	print('INFO: Successfully identified destination group with name', destination_group['name'], 'and groupid', destination_group['groupid'])
 
 #perform the moves
-print('\nAttempting to move', len(hostnames), 'devices to', destination_group)
+print('\nAttempting to move', len(hostnames), 'hostnames to', destination_group['name'], '\n')
 
 counter = 1
 successes = []
 failures = []
 
 for hostname in hostnames:
-	print(counter, '/', len(hostnames))
+	print(counter, '/', len(hostnames), hostname)
 
 	#find agent id(s)
-	print('INFO: Searching for agent id for hostname', hostname)
+	print('INFO: Searching for agentid(s) for hostname', hostname)
 	request_url = f'{base_url}v1/agent/find'
 	payload = {'hostname': hostname}
 	response = requests.post(request_url, headers=headers, json=payload, verify=False)
@@ -84,10 +89,10 @@ for hostname in hostnames:
 			#execute the move
 			request_url = f'{base_url}v1/agent/move'
 			payload = {'agentid': agentid, 'groupid': destination_group['groupid']}
-			print('INFO: Moving agent', hostname , 'with GUID', agentid, 'to group', group['name'], 'with GUID', group['groupid'])
+			print('INFO: Moving agent', agentid, 'to group', destination_group['groupid'])
 			response = requests.post(request_url, headers=headers, json=payload, verify=False)
 			if response.status_code == 200:
-				print('Success')
+				print('Success\n')
 				successes.append(hostname)
 			else:
 				print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers, 'and payload', payload)
@@ -95,7 +100,7 @@ for hostname in hostnames:
 	counter += 1
 
 #print results
-print('\nSuccessfully moved', len(successes), 'devices to', destination_group)
+print('\nSuccessfully moved', len(successes), 'devices to', destination_group['name'])
 for hostname in successes:
 	print(hostname)
 print('\nEncountered', len(failures), 'failures')
