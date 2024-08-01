@@ -2,10 +2,10 @@
 ## and import the list of blocked hashes into an Airlock Blocklist
 ##
 ## Usage:
-## 1. Create a .yaml configuration file usign template below
-## 2. Export Crowdstrike IOC as CSV
-## 3. Place the above two files in the same directory as this PY
-## 4. Run this file (python import_cs_ioc_to_ald_blocklist.py)
+## 1. Create a .yaml configuration file using the template below
+## 2. Export a Crowdstrike IOC in CSV format
+## 3. Place the YAML, the CSV, and this PY in the same directory
+## 4. Run this command: python import_cs_ioc_to_ald_blocklist.py
 
 ## CONFIG FILE TEMPLATE ## 
 '''
