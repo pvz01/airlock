@@ -117,6 +117,8 @@ def main():
     #ask the user if they are sure
     user_response = input('Do you want to proceed with adding hashes to the selected blocklist? Enter YES to continue: ')
     if user_response == 'YES':
+
+        #execute the change by adding the hashes to the blocklist
         add_hashes_to_blocklist(config, hash_list, blocklist['blocklistid'])
     else:
         print('Canceled change due to your response', user_response)
