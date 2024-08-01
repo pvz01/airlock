@@ -83,7 +83,7 @@ def remove_from_all_allowlists(config, hash_list):
 def read_config(file_name):
     with open(file_name, 'r') as file:
         config = yaml.safe_load(file)
-    print('Read config from', config_file_name, 'for', config['server_name'])
+    print('Read config from', file_name, 'for', config['server_name'])
     return config
 
 #prompt user to select a blocklist
