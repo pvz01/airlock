@@ -101,8 +101,11 @@ def main():
 Welcome to the Airlock Event Summarizer tool. This utility downloads events from your Airlock Server,
 calculates the most common values for each of a series of fields, and writes the result to disk as
 a text file. This can be useful to help understand large data sets often seen during initial installation
-when your allowlisting policies are relative undefined. This tool reads server configuration from a YAML
-configuration file. Use a text editor of your choice to create a configuration file matching this syntax:
+when your allowlisting policies are relatively immature (undefined). Specifically, it can help highlight
+the files (candidates for trusting by hash), folders (candidates for Path Exclusions), and parent processes
+(candidates for trusted processes) that are generating the most traffic in your environment. This tool 
+reads server configuration from a YAML configuration file. Use a text editor of your choice to create a 
+configuration file matching this syntax:
 
 server_name: foo
 api_key: bar
