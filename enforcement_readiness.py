@@ -354,21 +354,26 @@ def main():
 	readme_message = """
 Welcome to the PVZ's Airlock Enforcement Readiness Assessment tool. This tool is an example of how to
 generate an Excel-readable spreadsheet with key data points to assist with assessing which computers
-in your environment are relatively low versus relatively high to promote from Audit Mode to Enforcement
-Mode. To accomplish this, it exports all events in the last 30 days from your chosen Audit Mode policy,
-summarizes them by hostname, and then exports this along with a list of hostnames in that policy. It
-also adds a column which indicates how many days ago each agent last connected to the server. 
+in your environment are relatively low versus relatively high risk to promote from Audit Mode to 
+Enforcement Mode. To accomplish this, it exports all events in the last 30 days from your chosen Audit 
+Mode policy, summarizes them by hostname, and then exports this along with a list of hostnames in that 
+policy. It also adds columns which indicate how many days ago each agent last connected to the server
+and how long ago the most recent registation (new install) for that hostname occured.
 
 This script makes no changes to your environment and makes no specific recommendation on what to move
 to enforcement. Instead, it equips you to do "what if" scenarios in Excel, for example if you were to
 filter the results on 
-  lastcheckin_days_ago < 3
+
+  untrusted_15d < 5
   -and-
-  untrusted_executions_last_15_days < 5
-you would be left with a list of devices which have had minimal events in the last 2+ weeks and that
-have also connected recently enough that you know you have relatively complete data. Many customers
-consider that devices matching this criteria are quite low risk to move to Enforcement Mode and use
-same or similar criteria to promote devices.
+  install_age > 21
+  -and-
+  checkin_age < 3
+
+you would be left with a list of devices which have been installed 3+ weeks, had minimal events in
+the last 2+ weeks, and have checked in (and therefore uploaded any new events) within the last 2 days.
+Many customers consider that devices matching this criteria are quite low risk to move to Enforcement 
+Mode and use same or similar criteria to promote devices.
 
 This tool reads server configuration from a YAML configuration file. Use a text editor of your choice 
 to create a configuration file matching the syntax below and place it in the same folder as the PY
