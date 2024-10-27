@@ -3,6 +3,9 @@
 ## 1. **Script Overview**
 The [rules_based_policy_group_assignment.py](rules_based_policy_group_assignment.py) script dynamically assigns agents to specific policy groups based on configurable rules. The script retrieves a list of agents from a server, categorizes them based on hostname or operating system criteria, and moves them to the correct policy group if necessary. Each agent's movement is logged to a CSV file, which can be customized via the configuration file.
 
+### License
+This script is published under the GNU General Public License v3.0 and is intended as a practical example of how to interact with the [Airlock Digital REST API](https://api.airlockdigital.com/). It is not a commercial product and is provided 'as-is' with no support. No warranty, express or implied, is provided, and the use of this script is at your own risk.
+
 ### Key Features
 - **Dynamic Agent Categorization**: Agents are categorized based on hostname patterns or operating system rules specified in a YAML configuration file.
 - **Policy Group Assignment**: Agents are moved to specific policy groups if their current group does not match the expected group.

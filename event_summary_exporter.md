@@ -4,6 +4,9 @@
 
 This script, [event_summary_exporter.py](event_summary_exporter.py) automates the process of exporting and analyzing execution history (event) data from an Airlock server. It identifies and reports on the most common activity patterns, focusing on "Untrusted Execution [Audit]" events to help reduce overall event volume and prepare for transitioning to Enforcement Mode. The output is a structured Excel report that summarizes the most frequent values in key fields.
 
+### License
+This script is published under the GNU General Public License v3.0 and is intended as a practical example of how to interact with the [Airlock Digital REST API](https://api.airlockdigital.com/). It is not a commercial product and is provided 'as-is' with no support. No warranty, express or implied, is provided, and the use of this script is at your own risk.
+
 ### Prerequisites
 The script requires:
 - An API key with `logging/exechistories` permission.
