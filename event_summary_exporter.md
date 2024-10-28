@@ -27,7 +27,7 @@ The script performs the following tasks:
 
 ## Configuration File (YAML)
 
-The script reads from a required YAML configuration file (`airlock.yaml`) in the same directory as the script and with the following structure.
+The script reads from a YAML configuration file, which you will need to create. To create the YAML, copy the example below and paste it into any text editor, make the necessary edits, then save it as `airlock.yaml` in the same directory as the script.
 
 ### Required Properties - in root of YAML
 
