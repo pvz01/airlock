@@ -71,6 +71,24 @@ event_summary_exporter:
     - Servers Audit
 ```
 
+## Environment setup
+
+1. Install Python 3.x ensuring that you select the option in the install wizard to add Python to your system PATH variable
+2. Open a Command Prompt window and run this command to install the required dependencies:
+
+  `pip install requests pandas yaml openpyxl bson`
+
+## Usage instructions
+
+1. Download [event_summary_exporter.py](event_summary_exporter.py) to your computer
+2. Create `airlock.yaml` configuration file matching the template above and save it into the same folder as the script
+3. Open a Command Prompt window, CD to the directory containing the script and configuration file, and run this command:
+
+`python event_summary_exporter.py`
+
+4. Monitor the Command Prompt window for progress and any errors.
+5. Open the output file in Excel to view the results.
+
 ## Output
 
 The script generates an Excel file with the name format:
