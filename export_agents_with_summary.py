@@ -234,7 +234,7 @@ for index, columnname in enumerate(column_order):
 
 print('Exporting data')
 export_filename = calculate_export_filename()
-summarize_by = ['groupname', 'policymode']
+summarize_by = ['groupname', 'policymode', 'clientversion', 'os', 'domain', 'daysoffline', 'status']
 if categories:
 	summarize_by.insert(0, 'category-policymode')
 	summarize_by.insert(1, 'category')
