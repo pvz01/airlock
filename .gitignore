@@ -8,3 +8,5 @@
 *.yaml
 *.xml
 .DS_Store
+*.docx
+*.pdf
