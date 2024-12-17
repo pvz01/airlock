@@ -7,21 +7,26 @@
 import requests
 import json
 import sys
+import yaml
 
 # Suppress ssl warnings
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Read airlock server config from a YAML file
+config_file_name = 'airlock.yaml'
+with open(config_file_name, 'r') as file:
+	config = yaml.safe_load(file)
+print('Read config from', config_file_name, 'for', config['server_name'])
+
 # Prompt for configuration
-server_fqdn = input('Enter server fqdn: ')
-api_key = input('Enter API key: ')
 filename = input('Create a plain text file with one path per line. Enter name of that file here, or press return to accept the default (paths.txt): ')
 if filename == '':
 	filename = 'paths.txt'
 
 # Calculate base configuration used for requests to server
-base_url = 'https://' + server_fqdn + ':3129/'
-headers = {'X-APIKey': api_key}
+base_url = 'https://' + config['server_name'] + ':3129/'
+headers = {'X-APIKey': config['api_key']}
 
 # Read paths from input file on disk
 paths = []

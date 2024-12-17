@@ -9,9 +9,8 @@
 # Set list of OTP durations. This should match the durations enabled in policy.
 valid_durations = ['15m', '1h', '6h', '24h', '7d']
 
-# Optionally set server name and/or API key. If left blank, you will be prompted.
-server_fqdn = ''
-api_key = ''
+# Set name of file to read Airlock server name and API key from
+config_file_name = 'airlock.yaml'
 
 
 ##RUNTIME
@@ -20,23 +19,22 @@ api_key = ''
 import requests
 import json
 import sys
+import yaml
 
 #suppress SSL warnings
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-#prompt user for server configuration at runtime if it is not already provided
-if server_fqdn == '':
-    server_fqdn = input('Server: ')
-if api_key == '':
-    api_key = input('API Key: ')
+#read server config
+with open(config_file_name, 'r') as file:
+    config = yaml.safe_load(file)
 
 #prompt user for hostname
 hostname = input('Hostname of the computer to generate an OTP code for: ')
 
 #calculate base URL and headers used for interacting with server
-base_url = f'https://{server_fqdn}:3129/v1/'
-request_headers = {'X-APIKey': api_key}
+base_url = f'https://{config['server_name']}:3129/v1/'
+request_headers = {'X-APIKey': config['api_key']}
 
 #find the agentid for the provided hostname
 request_url = base_url + 'agent/find'

@@ -6,9 +6,7 @@
 
 ##CONFIGURATION
 
-# Server configuration
-server_fqdn = 'your-server-name'
-apikey = 'your-api-kay'
+config_file_name = 'airlock.yaml'
 
 # Checkpoint
 # To export new data, provide checkpoint from the last row of previous export
@@ -23,14 +21,19 @@ import requests
 import json
 import csv
 import datetime
+import yaml
 
 # Suppress SSL warnings
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Read server config
+with open(config_file_name, 'r') as file:
+    config = yaml.safe_load(file)
+
 # Get data from server
-request_url = f'https://{server_fqdn}:3129/v1/logging/svractivities'
-request_headers = {'X-APIKey': apikey}
+request_url = f'https://{config['server_name']}:3129/v1/logging/svractivities'
+request_headers = {'X-APIKey': config['api_key']}
 collected_data = []
 while True:
 	request_body = {'checkpoint': checkpoint}
@@ -46,9 +49,9 @@ while True:
 print(len(collected_data), 'total rows of data downloaded from server')
 
 # Calculate file name for export
-servername = server_fqdn.replace(".", "-")
+server_alias = config['server_name'].replace(".", "-")
 timestamp = datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")
-file_name = f'airlock_server_activity_{servername}_{timestamp}.csv'
+file_name = f'airlock_server_activity_{server_alias}_{timestamp}.csv'
 
 # Write data to disk
 print('Beginning export of data to', file_name)

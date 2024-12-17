@@ -6,15 +6,20 @@
 import requests
 import json
 import sys
+import yaml
 
 #enable/disable verbost printing of every request url, payload, and response code
 debugmode = False  #set to either True or False
 
-#prompt for config
-server_fqdn = input('Server: ')
-base_url = f'https://{server_fqdn}:3129'
-api_key = input('API key: ')
-headers = {'X-APIKey': api_key}
+#get airlock server config
+config_file_name = 'airlock.yaml'
+with open(config_file_name, 'r') as file:
+	config = yaml.safe_load(file)
+print('Read config from', config_file_name, 'for', config['server_name'])
+
+#calculate base configuration
+base_url = f'https://{config['server_name']}:3129'
+headers = {'X-ApiKey': config['api_key']}
 
 #get list of groups
 request_url = f'{base_url}/v1/group'

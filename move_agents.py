@@ -6,6 +6,7 @@
 #required libraries for interacting with REST API
 import requests
 import json
+import yaml
 
 #required library to exit script in case of critical error
 import sys
@@ -14,9 +15,13 @@ import sys
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
 
+#get airlock server config
+config_file_name = 'airlock.yaml'
+with open(config_file_name, 'r') as file:
+	config = yaml.safe_load(file)
+print('Read config from', config_file_name, 'for', config['server_name'])
+
 #prompt for configuration
-server_fqdn = input('Server fqdn: ')
-api_key = input('API key: ')
 print('\nCreate a plain text file with a list of hostnames to move. One hostname per line, no headers, no leading or trailing spaces, no quotes. For example:\n\nhostname01\nhostname02\nhostname03\n\nSave this file in the working directory that you invoked this script from.\n')
 filename = input('Enter filename to read hostnames from, or enter no value to use the default (hostnames.txt): ')
 if filename == '':
@@ -35,8 +40,8 @@ print('\nINFO: Read', len(hostnames), 'hostnames from', filename)
 print(hostnames)
 
 #calculate base configuration used for requests to server
-base_url = 'https://' + server_fqdn + ':3129/'
-headers = {'X-APIKey': api_key}
+base_url = 'https://' + config['server_name'] + ':3129/'
+headers = {'X-APIKey': config['api_key']}
 
 #read group list
 request_url = f'{base_url}v1/group'

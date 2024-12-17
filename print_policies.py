@@ -4,16 +4,8 @@
 # Use this command to install prerequisites:
 #     pip install requests
 
-import requests, json, sys
-
-#option to disable SSL certificate verification when running against a non-prod server
-is_lab_server = True
-if is_lab_server:
-	verify_ssl = False
-	import urllib3
-	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-else:
-	verify_ssl = True
+import requests, json, sys, yaml, urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 #create global variables
 base_url = ''
@@ -21,9 +13,16 @@ headers = {}
 include_additional_settings = False
 
 #define a series of functions used for the analysis
+
+def read_config(config_file_name):
+    with open(config_file_name, 'r') as file:
+        config = yaml.safe_load(file)
+    print('Read config from', config_file_name, config)
+    return config
+
 def get_groups():
 	request_url = f'{base_url}v1/group'
-	response = requests.post(request_url, headers=headers, verify=verify_ssl)
+	response = requests.post(request_url, headers=headers, verify=False)
 	if response.status_code == 200:
 		return response.json()['response']['groups']
 	else:
@@ -33,7 +32,7 @@ def get_groups():
 def get_policy_for_group(group):
 	request_url = f'{base_url}v1/group/policies'
 	payload = {'groupid': group['groupid']}
-	response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+	response = requests.post(request_url, headers=headers, json=payload, verify=False)
 	if response.status_code == 200:
 		return response.json()['response']
 	else:
@@ -95,20 +94,16 @@ def main():
 	global base_url
 	global headers
 	global include_additional_settings
+
+	#get airlock server config and calculate base configuration for server interaction
+	config = read_config('airlock.yaml')
+	base_url = 'https://' + config['server_name'] + ':3129/'
+	headers = {'X-APIKey': config['api_key']}
 	
 	#prompt for config
-	server_fqdn = input('Enter server fqdn: ')
-	server_port = input('Enter server port, or press return to accept the default (3129): ')
-	if server_port == '':
-		server_port = 3129
-	api_key = input('Enter API key: ')
 	include_additional_settings = input('Include additional settings? Enter YES or NO, or press return to accept the default (NO): ')
 	if include_additional_settings.lower() == 'yes':
 		include_additional_settings = True
-
-	#calculate base configuration used for requests to server
-	base_url = 'https://' + server_fqdn + ':' + str(server_port) + '/'
-	headers = {'X-APIKey': api_key}
 
 	#get groups from server	
 	groups = get_groups()

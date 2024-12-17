@@ -5,22 +5,20 @@
 # agentid values into a text editor such as Notepad++ or BBEdit.
 # 
 # Use this command to install prerequisites:
-#     pip install requests
+#     pip install requests yaml
 
-#required libraries for interacting with REST API
 import requests
 import json
-
-#required library to exit script in case of error
 import sys
-
-#suppress ssl warnings if not using certificate verification
+import yaml
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
 
+#get airlock server config
+with open('airlock.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+
 #prompt for configuration
-server_fqdn = input('Server fqdn: ')
-api_key = input('API key: ')
 print('\nCreate a plain text file with a list of agendids to remove. One agentid per line, no headers, no leading or trailing spaces, no quotes. For example:\n\naaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\nbbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb\ncccccccc-cccc-cccc-cccc-cccccccccccc\n\nSave this file in the working directory that you invoked this script from.\n')
 filename = input('Enter filename to read agentids from, or enter no value to use the default (agentids.txt): ')
 if filename == '':
@@ -44,8 +42,8 @@ for agentid in agentids:
     print(agentid)
 
 #calculate base configuration used for requests to server
-base_url = 'https://' + server_fqdn + ':' + str(3129) + '/'
-headers = {'X-APIKey': api_key}
+base_url = 'https://' + config['server_name'] + ':3129/'
+headers = {'X-APIKey': config['api_key']}
 
 #sanity check
 proceed = input('\nAre you sure you want to remove ' + str(len(agentids)) + ' agents? Enter YES to proceed: ')

@@ -8,10 +8,16 @@ import json
 import datetime
 import dateutil
 import csv
+import yaml
+
+# Read server config
+config_file_name = 'airlock.yaml'
+with open(config_file_name, 'r') as file:
+    config = yaml.safe_load(file)
 
 # Get list of all offline agents
-url = 'https://SERVER-NAME:3129/v1/agent/find'
-headers = {'X-APIKey': 'API-KEY'}
+url = 'https://' + config['server_name'] + ':3129/v1/agent/find'
+headers = {'X-APIKey': config['api_key']}
 payload = {'status': 0}  # 0=offline 1=online 3=safemode
 response = requests.post(url, json=payload, headers=headers, verify=False)
 offline_agent_list = response.json()['response']['agents']

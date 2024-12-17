@@ -3,33 +3,24 @@
 # Use this command to install prerequisites:
 #     pip install requests
 
-import requests, json, sys
+import requests, json, sys, yaml, urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+#get airlock server config
+with open('airlock.yaml', 'r') as file:
+    config = yaml.safe_load(file)
 
 #prompt for config
-server_fqdn = input('Enter server fqdn: ')
-server_port = input('Enter server port, or press return to accept the default (3129): ')
-if server_port == '':
-	server_port = 3129
-api_key = input('Enter API key: ')
 new_stop_code = input('Enter new Agent Stop Code: ')
 
-#option to disable SSL certificate verification when running against a non-production server
-is_lab_server = True
-if is_lab_server:
-	verify_ssl = False
-	import urllib3
-	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-else:
-	verify_ssl = True
-
 #calculate base configuration used for requests to server
-base_url = 'https://' + server_fqdn + ':' + str(server_port) + '/'
-headers = {'X-APIKey': api_key}
+base_url = 'https://' + config['server_name'] + ':3129/'
+headers = {'X-APIKey': config['api_key']}
 
 #get list of groups and print results to console
 request_url = f'{base_url}v1/group'
 print('\nINFO: Getting list of groups from the server')
-response = requests.post(request_url, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, headers=headers, verify=False)
 if response.status_code != 200:
 	print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 	sys.exit(0)
@@ -50,7 +41,7 @@ for group in groups:
 		request_url = f'{base_url}v1/group/settings/agentstopcode'
 		payload = {'groupid': group['groupid'],
 		 			'agentstopcode': new_stop_code}
-		response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+		response = requests.post(request_url, headers=headers, json=payload, verify=False)
 		if response.status_code != 200:
 			print('ERROR: Unexpected return code', response.status_code, 'on POST to', request_url, 'with headers', headers, 'and payload', payload)
 			failures.append(group)

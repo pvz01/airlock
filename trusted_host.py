@@ -15,14 +15,13 @@
 #
 # 
 # Use this command to install prerequisites:
-#	 pip install requests datetime time
+#	 pip install requests datetime time yaml
 #
 
 ##CONFIGURATION
 
-#define server configuration
-servername = 'your-server-name'
-headers = {'X-APIKey': 'your-api-key'}
+#name of file containing server configuration
+config_file_name = 'airlock.yaml'
 
 #define the application that you want to add the hashes to
 #note: to get this from GUI, right-click an application and
@@ -51,24 +50,28 @@ sleep_time_in_seconds = 300
 
 ##RUNTIME
 
-#import third-party libraries
 import requests
 import json
 import datetime
 import time
-
-#suppress ssl warnings
+import yaml
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
 
+#get airlock server config
+with open('airlock.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+base_url = 'https://' + config['server_name'] + ':3129/v1/'
+headers = {'X-ApiKey': config['api_key']}
+
 #seed initial checkpoint (high water mark) value
-response = requests.post(f'https://{servername}:3129/v1/logging/exechistories', headers=headers, json={}, verify=False)
+response = requests.post(f'{base_url}logging/exechistories', headers=headers, json={}, verify=False)
 checkpoint = response.json()['response']['exechistories'][0]['checkpoint']
 
 #run in an infinite loop
 while True:
 	#get new events
-	request_url = f'https://{servername}:3129/v1/logging/exechistories'
+	request_url = f'{base_url}logging/exechistories'
 	payload = {'type': event_types, 
 			   'policy': policies,
 			   'checkpoint': checkpoint }
@@ -88,7 +91,7 @@ while True:
 		print(datetime.datetime.now().strftime('%H:%M:%S'), 'Found', len(sha256_list), 'unique files:', sha256_list)
 		
 		#add hashes to configured application
-		request_url = f'https://{servername}:3129/v1/hash/application/add'
+		request_url = f'{base_url}logging/hash/application/add'
 		payload = {'applicationid': applicationid,
 				   'hashes': sha256_list }
 		print(datetime.datetime.now().strftime('%H:%M:%S'), 'Sending request to', request_url, 'with payload', payload)		

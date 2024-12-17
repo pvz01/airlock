@@ -15,8 +15,7 @@
 
 
 #CONFIGURATION
-airlock_server = 'foo'
-airlock_api_key = 'bar'
+config_file_name = 'airlock.yaml'
 hostnames = ['hostname01', 'hostname02', 'hostname03']
 group_name = 'Your Audit Mode Group'
 
@@ -28,11 +27,17 @@ import requests
 import json
 import sys
 import urllib3
+import yaml
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
 
+#get airlock server config
+with open(config_file_name, 'r') as file:
+	config = yaml.safe_load(file)
+print('Read config from', config_file_name, 'for', config['server_name'])
+
 #calculate base configuration used for requests to server
-base_url = 'https://' + airlock_server + ':3129/'
-headers = {'X-APIKey': airlock_api_key}
+base_url = 'https://' + config['server_name'] + ':3129/'
+headers = {'X-APIKey': config['api_key']}
 
 #query server for list of groups
 request_url = f'{base_url}v1/group'
@@ -41,7 +46,7 @@ if response.status_code != 200:
 	print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 	sys.exit(0)
 groups = response.json()['response']['groups']
-print('INFO: Successfully queried', airlock_server, 'and found list of', len(groups), 'groups')
+print('INFO: Successfully queried', config['server_name'], 'and found list of', len(groups), 'groups')
 
 #find the destination group
 destination_group = None

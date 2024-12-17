@@ -10,9 +10,8 @@
 
 ##CONFIGURATION
 
-# Server configuration
-base_url = 'https://your-server-name:3129/v1/'
-headers = {'X-APIKey': 'your-api-key'}
+# Server configuration file name
+config_file_name = 'airlock.yaml'
 
 # Hostnames
 hostnames = ['hostname01', 'hostname02']
@@ -23,10 +22,20 @@ hostnames = ['hostname01', 'hostname02']
 #import required libraries
 import requests
 import json
+import yaml
 
 #suppress SSL warnings
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+#get airlock server config
+with open(config_file_name, 'r') as file:
+	config = yaml.safe_load(file)
+print('Read config from', config_file_name, 'for', config['server_name'])
+
+#calculate base configuration for interacting with server
+base_url = f'https://{config['server_name']}:3129/v1/'
+headers = {'X-ApiKey': config['api_key']}
 
 #find the agentids of the hostnames
 agentids = []

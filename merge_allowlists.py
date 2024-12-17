@@ -8,14 +8,19 @@ airlock_api_key = 'bar'
 import requests
 import json
 import xml.etree.ElementTree as ET
+import yaml
 
 #suppress SSL warnings
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+#read server config
+with open('airlock.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+
 #calculate base configuration for interacting with server
-base_url = f'https://{airlock_server_fqdn}:3129'
-headers = {'X-APIKey': airlock_api_key}
+base_url = f'https://{config['server_name']}:3129'
+headers = {'X-APIKey': config['api_key']}
 
 print('Welcome to the Allowlist Merge tool. This script will query the server for a list of allowlists (formerly known as applications) and ask you to select a source and destination. It then gets the list of hashes for files in the source, adds them to the destination, and removes them from the source.')
 

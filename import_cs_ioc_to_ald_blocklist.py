@@ -100,7 +100,7 @@ def main():
 
     #get Airlock Server config
     global config
-    config_file_name = input('Enter name of YAML file with Airlock Server Config: ')
+    config_file_name = 'airlock.yaml'
     config = read_config(config_file_name)
     
     #get data from CS
