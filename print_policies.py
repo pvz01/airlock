@@ -75,7 +75,23 @@ def print_policy(policy):
 			currentpath = path['name']
 			currentpath = currentpath.replace('\\\\', '\\') #replace double backslashes with singles
 			print(f"\t{currentpath}")
+
+	pprocesses = policy.pop('pprocesses')
+	if pprocesses != None:
+		print(f"\n{len(pprocesses)} parent processes")
+		for path in pprocesses:
+			currentpath = path['name']
+			currentpath = currentpath.replace('\\\\', '\\') #replace double backslashes with singles
+			print(f"\t{currentpath}")
 	
+	gprocesses = policy.pop('gprocesses')
+	if gprocesses != None:
+		print(f"\n{len(gprocesses)} grandparent processes")
+		for path in gprocesses:
+			currentpath = path['name']
+			currentpath = currentpath.replace('\\\\', '\\') #replace double backslashes with singles
+			print(f"\t{currentpath}")	
+
 	blocklists = policy.pop('blocklists')
 	if blocklists != None:
 		print(f"\n{len(blocklists)} blocklists")
