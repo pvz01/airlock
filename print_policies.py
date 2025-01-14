@@ -58,7 +58,7 @@ def print_policy(policy):
 	
 	applications = policy.pop('applications')
 	if applications != None:
-		print(f"\n{len(applications)} applications")
+		print(f"\n{len(applications)} allowlists") #updated to reflect new name of this feature
 		for application in applications:
 			print(f"\t{application['name']}")
 	
@@ -117,8 +117,9 @@ def main():
 	headers = {'X-APIKey': config['api_key']}
 	
 	#prompt for config
-	include_additional_settings = input('Include additional settings? Enter YES or NO, or press return to accept the default (NO): ')
-	if include_additional_settings.lower() == 'yes':
+	include_additional_settings = False
+	user_input = input('Include additional settings? Enter YES or NO, or press return to accept the default (NO): ')
+	if user_input.lower() == 'yes':
 		include_additional_settings = True
 
 	#get groups from server	
