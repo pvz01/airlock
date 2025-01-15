@@ -14,7 +14,7 @@ and you want to limit the resulting network traffic and also impact on
 the server by doing a "low and slow" transition over many hours, days,
 or weeks.
 
-This script reads a list of requested moves from an Excel document, then
+This script reads a list of requested moves from an XLSX or CSV, then
 inspects current policy group assignment to determine which of the requested
 moves have already been completed and which are needed. This can be useful
 because if you need to pause the moves and modify throttle or other
@@ -39,7 +39,7 @@ files which need to be placed on disk in the same directory as the PY:
 	  agent/move
 
 2. This tool reads the list of requested agent moves from an XLSX (Excel
-   OOXML) file. Use Excel or equivalent to create a single sheet (tab) 
+   OOXML) or CSV file. Use Excel or equivalent to create a single sheet (tab) 
    workbook with two columns. In the first row, provide column headers, and
    in subsequent rows provide the list of requested moves. Example format:
 
@@ -49,6 +49,20 @@ files which need to be placed on disk in the same directory as the PY:
    cccccccc-cccc-cccc-cccc-cccccccccccc  11111111-1111-1111-1111-111111111111
    dddddddd-dddd-dddd-dddd-dddddddddddd  22222222-2222-2222-2222-222222222222
    eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee  22222222-2222-2222-2222-222222222222
+
+   Alternately, create a CSV file following the equivalent format. Example:
+
+   agentid,groupid
+   aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa,11111111-1111-1111-1111-111111111111
+   bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb,11111111-1111-1111-1111-111111111111
+   cccccccc-cccc-cccc-cccc-cccccccccccc,11111111-1111-1111-1111-111111111111
+   dddddddd-dddd-dddd-dddd-dddddddddddd,22222222-2222-2222-2222-222222222222
+   eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee,22222222-2222-2222-2222-222222222222
+
+   Regardless of file format, the header row is required. The columns 'agentid'
+   and 'groupid' are required and their names are cASe SENsITive. No specific
+   column order is required. Additional columns can be present and will have no
+   effect on functionality of the script.
 
 With the two input files in place, review the CONFIGURATION PARAMETERS section
 below and provide the file name of each. You can also adjust the other parameters
@@ -65,7 +79,7 @@ any point using Ctrl+C.
 
 # CONFIGURATION PARAMETERS
 config_file = 'airlock.yaml'  # Name of YAML file to get server configuration
-input_file = 'agent_moves.xlsx'  # Name of XLSX file to get requested moves
+input_file = 'agent_moves.xlsx'  # Name of XLSX or CSV file to get requested moves
 max_batch_size = 20  # Maximum number of agents to move in a single batch
 throttle_per_agent_moved = 30  # Sleep time *per agent moved* after each batch
 retry_interval = 300  # Sleep time in case of unresponsive server
@@ -73,7 +87,7 @@ max_retries = 12  # Number of retries in case of unresponsive server
 
 
 # Import libraries
-import requests, json, urllib3, yaml, pandas, time
+import requests, json, urllib3, yaml, pandas, time, sys
 from datetime import datetime, timezone 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -97,37 +111,44 @@ print(len(agents), 'agents downloaded from server')
 # Create a mapping of agentid to groupid from the agents list for quick lookup
 agent_group_map = {agent['agentid']: agent['groupid'] for agent in agents}
 
-# Read list of requested moves from XLSX
-df = pandas.read_excel(input_file)
+# Read list of requested moves from XLSX or CSV
+if input_file[-5:].lower() == '.xlsx':
+    df = pandas.read_excel(input_file)
+elif input_file[-4:].lower() == '.csv':
+    df = pandas.read_csv(input_file)
+else:
+    print(input_file, 'is not a supported file type')
+    sys.exit(1)
 requested_moves = df.to_dict(orient='records')
+requested_move_count = len(requested_moves)
 print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
-print(len(requested_moves), 'requested moves were read from', input_file)
+print(requested_move_count, 'requested moves were read from', input_file)
 
 # Compare requested moves to agent list to calculate required moves
-agent_moves = {}
+required_moves = {}
 for agent in requested_moves:
     target_groupid = agent['groupid']
     agent_id = agent['agentid']
     current_groupid = agent_group_map.get(agent_id)
     if current_groupid != target_groupid:
-        if target_groupid not in agent_moves:
-            agent_moves[target_groupid] = []
-        agent_moves[target_groupid].append(agent_id)
+        if target_groupid not in required_moves:
+            required_moves[target_groupid] = []
+        required_moves[target_groupid].append(agent_id)
         
 # Print summary of required moves
-total_moves = sum(len(ids) for ids in agent_moves.values())
-move_count = len(requested_moves) - total_moves
+required_move_count = sum(len(ids) for ids in required_moves.values())
+move_done_count = requested_move_count - required_move_count #seed this with count of requested-but-already-done moves
 print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
-print(move_count, 'of the requested moves have already been completed')
+print(move_done_count, 'of', requested_move_count, 'requested moves have already been completed')
 print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
-print(total_moves, 'total moves are needed')
-for groupid, ids in agent_moves.items():
+print(required_move_count, 'additional moves are needed')
+for groupid, ids in required_moves.items():
     print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
     print(len(ids), 'moves to', groupid)
 
 # Perform required moves
 url = 'https://' + server_name + ':3129/v1/agent/move'
-for groupid, agent_ids in agent_moves.items():
+for groupid, agent_ids in required_moves.items():
     for i in range(0, len(agent_ids), max_batch_size):
         batch = agent_ids[i:i + max_batch_size]
         body = {'groupid': groupid, 'agentid': batch}
@@ -140,7 +161,7 @@ for groupid, agent_ids in agent_moves.items():
                 if response.status_code == 200:
                     print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
                     print('Success:', url, response)
-                    move_count += len(batch)
+                    move_done_count += len(batch)
                     break #break out of retry loop
                 else:
                     print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
@@ -155,9 +176,9 @@ for groupid, agent_ids in agent_moves.items():
                 print(f'Retry {attempts + 1}/{max_retries} after {retry_interval} seconds...')
                 time.sleep(retry_interval)
                 attempts += 1
+        percent_done = (move_done_count / requested_move_count) * 100
         print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
-        percentage_completed = (move_count / total_moves) * 100
-        print(move_count, 'of', total_moves, f"({percentage_completed:.2f}%)" , 'requested agent moves have been completed')
+        print(move_done_count, 'of', requested_move_count, f"({percent_done:.2f}%)" , 'requested agent moves have been completed')
         sleep_time = len(batch) * throttle_per_agent_moved
         print(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), end=' ')
         print('Sleeping', sleep_time, 'seconds')
