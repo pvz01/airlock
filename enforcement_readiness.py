@@ -287,7 +287,7 @@ def get_last_registrations_per_hostname(server_activity_logs):
 		if entry['task'] == 'Client Operation' and entry['user'] == 'SYSTEM':
 			if entry['description'].startswith('New agent'):
 				hostname = entry['description'].split()[2].lower()  # hostname is 3rd word in the description field
-				timestamp = datetime.datetime.fromisoformat(entry['datetime'])
+				timestamp = dateutil.parser.parse(entry['datetime'])
 				if hostname not in results or timestamp > results[hostname]:
 					results[hostname] = timestamp
 	return results
