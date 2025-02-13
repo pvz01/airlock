@@ -165,6 +165,6 @@ if len(paths_in_source_only) > 0:
         response = requests.post(url, headers=headers, verify=False)
         print(url, response)
 else:
-    print('\nNo paths to move')
+    print('\nNo paths to copy')
 
 print('\nDone')
