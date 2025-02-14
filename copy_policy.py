@@ -10,6 +10,17 @@
 
 # CONFIGURATION
 
+# Define which policy components to copy
+policy_components_to_copy = {
+    'baselines': True,
+    'allowlists': True,
+    'blocklists': True,
+    'paths': True,
+    'publishers': True,
+    'processes': True,
+    'group_settings': True
+}
+
 # Name of file containing Airlock Server configuration. Create in a text editor
 # of your choice following this template:
 '''
@@ -25,9 +36,10 @@ config_file_name = 'airlock.yaml'
 source_policy_group_name = ''
 destination_policy_group_name = ''
 
-# Setting this to True will skip the "are you sure" prompt, which can be useful
+# Setting this to True will skip the "are you sure" prompts, which can be useful
 # if you are running this script unattended. For ad-hoc or interactive usage,
-# I recomment to leave this set to False.
+# I recommend to leave this set to False, meaning you will be prompted before
+# changes are made.
 skip_sanity_check_prompt = False
 
 # RUNTIME
@@ -94,6 +106,9 @@ if destination_group is None:
     source_index = int(input('\nWhich policy group do you want to copy policy to? '))-1
     destination_group = groups[source_index]
 print('\nPolicy will be copied to', f"'{destination_group['name']}'")
+
+print('\nBeginning copy of policy components based on this configuration:\n', json.dumps(policy_components_to_copy, indent=4))
+
 #print('\nYou chose to copy policy from\n', source_group, '\nto\n', destination_group)
 
 # Get policy for source
@@ -112,59 +127,87 @@ print(url, response)
 destination_group_policy = response.json()['response']
 #print(json.dumps(destination_group_policy, indent=4))
 
-# Extract Path Exclusion list from each of the downloaded policies
-print('\nExtracting the list of path exclusions from each of the downloaded policies')
-if source_group_policy.get('paths') is not None:
-    source_group_path_list = [path['name'] for path in source_group_policy['paths']]
-else:
-    source_group_path_list = []
-if destination_group_policy.get('paths') is not None:
-    destination_group_path_list = [path['name'] for path in destination_group_policy['paths']]
-else:
-    destination_group_path_list = []
-print(len(source_group_path_list), 'paths are in the source policy group', f"'{source_group['name']}'")
-print(len(destination_group_path_list), 'paths are in the destination policy group', f"'{destination_group['name']}'")
+if policy_components_to_copy['baselines']:
+    print('\nBaseline copy is enabled but not yet implemented')
+    pass #not yet implemented
 
-# Compare Path Exclusion lists
-print('\nComparing the two path exclusion lists')
-paths_in_both = []
-paths_in_source_only = []
-paths_in_destination_only = []
-for path in source_group_path_list:
-    if path in destination_group_path_list:
-          paths_in_both.append(path)
+if policy_components_to_copy['allowlists']:
+    print('\nAllowlist copy is enabled but not yet implemented')
+    pass #not yet implemented
+
+if policy_components_to_copy['blocklists']:
+    print('\nBlocklist copy is enabled but not yet implemented')
+    pass #not yet implemented
+
+if policy_components_to_copy['paths']:
+
+    # Extract Path Exclusion list from each of the downloaded policies
+    print('\nExtracting the list of path exclusions from each of the downloaded policies')
+    if source_group_policy.get('paths') is not None:
+        source_group_path_list = [path['name'] for path in source_group_policy['paths']]
     else:
-          paths_in_source_only.append(path)
-for path in destination_group_path_list:
-    if path not in source_group_path_list:
-          paths_in_destination_only.append(path)
-print(len(paths_in_both), 'paths are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
-print(len(paths_in_destination_only), 'paths are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
-print(len(paths_in_source_only), 'paths are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
-for path in paths_in_source_only:
-    print(path.replace('\\\\', '\\'))
-
-# Sanity check
-if skip_sanity_check_prompt:
-    print('\nSkipping sanity check based on configuration')
-else:
-    user_response = input(f"\nTo add these {len(paths_in_source_only)} paths to '{destination_group['name']}' type PROCEED and press return: ")
-    if user_response == 'PROCEED':
-        print('Proceeding based on your response:', user_response)
+        source_group_path_list = []
+    if destination_group_policy.get('paths') is not None:
+        destination_group_path_list = [path['name'] for path in destination_group_policy['paths']]
     else:
-        print('Aborting change based on our response:', user_response)
-        sys.exit(1)
+        destination_group_path_list = []
+    print(len(source_group_path_list), 'paths are in the source policy group', f"'{source_group['name']}'")
+    print(len(destination_group_path_list), 'paths are in the destination policy group', f"'{destination_group['name']}'")
 
-# Add the missing paths to the destination policy group
-if len(paths_in_source_only) > 0:
-    print('\nAdding', len(paths_in_source_only), 'paths to the destination policy group', f"'{destination_group['name']}'")
+    # Compare Path Exclusion lists
+    print('\nComparing the two path exclusion lists')
+    paths_in_both = []
+    paths_in_source_only = []
+    paths_in_destination_only = []
+    for path in source_group_path_list:
+        if path in destination_group_path_list:
+            paths_in_both.append(path)
+        else:
+            paths_in_source_only.append(path)
+    for path in destination_group_path_list:
+        if path not in source_group_path_list:
+            paths_in_destination_only.append(path)
+    print(len(paths_in_both), 'paths are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
+    print(len(paths_in_destination_only), 'paths are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
+    print(len(paths_in_source_only), 'paths are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
     for path in paths_in_source_only:
-        path = path.replace('\\\\', '\\')
-        encoded_path = urllib.parse.quote(path)
-        url = base_url + 'group/path/add?groupid=' + destination_group['groupid'] + "&path=" + encoded_path
-        response = requests.post(url, headers=headers, verify=False)
-        print(url, response)
-else:
-    print('\nNo paths to copy')
+        print(path.replace('\\\\', '\\'))
+
+    # Sanity check
+    if skip_sanity_check_prompt:
+        print('\nSkipping sanity check based on configuration')
+    else:
+        user_response = input(f"\nTo add these {len(paths_in_source_only)} paths to '{destination_group['name']}' type PROCEED and press return: ")
+        if user_response == 'PROCEED':
+            print('Proceeding based on your response:', user_response)
+        else:
+            print('Aborting change based on our response:', user_response)
+            sys.exit(1)
+
+    # Add the missing paths to the destination policy group
+    if len(paths_in_source_only) > 0:
+        print('\nAdding', len(paths_in_source_only), 'paths to the destination policy group', f"'{destination_group['name']}'")
+        for path in paths_in_source_only:
+            path = path.replace('\\\\', '\\')
+            encoded_path = urllib.parse.quote(path)
+            url = base_url + 'group/path/add?groupid=' + destination_group['groupid'] + "&path=" + encoded_path
+            response = requests.post(url, headers=headers, verify=False)
+            print(url, response)
+    else:
+        print('\nNo paths to copy')
+    
+    print('\nPath Exclusions are done')
+
+if policy_components_to_copy['publishers']:
+    print('\nTrusted Publisher copy is enabled but not yet implemented')
+    pass #not yet implemented
+
+if policy_components_to_copy['processes']:
+    print('\nTrusted Process copy is enabled but not yet implemented')
+    pass #not yet implemented
+
+if policy_components_to_copy['group_settings']:
+    print('\nGroup Settings copy is enabled but not yet implemented')
+    pass #not yet implemented
 
 print('\nDone')
