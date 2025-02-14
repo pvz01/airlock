@@ -1,11 +1,28 @@
-# Example of how to copy policy from one policy group to another. In this initial
-# version only Path Exclusions are copied, but it can be extended to copy additional
-# data types.
+# copy_policy.py
+# Last updated: 2025-02-14
+# Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
+#
+# Example of how to copy policy components from one Policy Group to another.
+#
+# Known limitations:
+# 1. Some policy components are not yet implemented and will be skipped at runtime.
+# 2. This script is a additive one-way sync only. It is designed to add "missing" 
+#    elements (those present in the source but not the destination) to the destination,
+#    but it will never delete any data, such as extra elements present in the
+#    destination. To use it to create an identical copy of an existing policy group,
+#    ensure that you are starting with a new blank policy group to use as the
+#    destination.
 # 
 # Requires an API key with permission to the following API endpoints:
 #   group
 #   group/policies
+#   group/baseline/approve
+#   group/application/approve
+#   group/blocklist/approve
 #   group/path/add
+#   group/publisher/add
+#   group/process/add
+#   group/settings/updateall
 
 
 # CONFIGURATION
@@ -128,12 +145,113 @@ destination_group_policy = response.json()['response']
 #print(json.dumps(destination_group_policy, indent=4))
 
 if policy_components_to_copy['baselines']:
-    print('\nBaseline copy is enabled but not yet implemented')
-    pass #not yet implemented
+    
+    # Extract Baseline list from each of the downloaded policies
+    print('\nExtracting the list of approved Baselines from each of the downloaded policies')
+    if source_group_policy.get('baselines') is not None:
+        source_group_baseline_list = source_group_policy.get('baselines')
+    else:
+        source_group_baseline_list = []
+    if destination_group_policy.get('baselines') is not None:
+        destination_group_baseline_list = destination_group_policy.get('baselines')
+    else:
+        destination_group_baseline_list = []
+    print(len(source_group_baseline_list), 'baselines are approved in the source policy group', f"'{source_group['name']}'")
+    print(len(destination_group_baseline_list), 'baselines are approved in the destination policy group', f"'{destination_group['name']}'")
+
+    # Compare Baseline lists
+    print('\nComparing the two approved Baselines lists')
+    baselines_in_both = []
+    baselines_in_source_only = []
+    baselines_in_destination_only = []
+    for baseline in source_group_baseline_list:
+        if baseline in destination_group_baseline_list:
+            baselines_in_both.append(baseline)
+        else:
+            baselines_in_source_only.append(baseline)
+    for baseline in destination_group_baseline_list:
+        if baseline not in source_group_baseline_list:
+            baselines_in_destination_only.append(baseline)
+    print(len(baselines_in_both), 'baselines are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
+    print(len(baselines_in_destination_only), 'baselines are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
+    print(len(baselines_in_source_only), 'baselines are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
+    for baseline in baselines_in_source_only:
+        print(baseline['baselineid'], baseline['name'])
+
+    # Add the missing baselines to the destination policy group
+    if len(baselines_in_source_only) > 0:
+        # Sanity check
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo add these {len(baselines_in_source_only)} baselines to '{destination_group['name']}' type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(baselines_in_source_only), 'baselines to the destination policy group', f"'{destination_group['name']}'")
+                for baseline in baselines_in_source_only:
+                    url = base_url + 'group/baseline/approve?groupid=' + destination_group['groupid'] + '&baselineid=' + baseline['baselineid']
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
+    else:
+        print('\nNo baselines to copy')    
+    print('\nBaselines are done')
 
 if policy_components_to_copy['allowlists']:
-    print('\nAllowlist copy is enabled but not yet implemented')
-    pass #not yet implemented
+    
+    # Extract allowlist list from each of the downloaded policies
+    print('\nExtracting the list of approved allowlists from each of the downloaded policies')
+    if source_group_policy.get('applications') is not None:
+        source_group_allowlist_list = source_group_policy.get('applications')
+    else:
+        source_group_allowlist_list = []
+    if destination_group_policy.get('applications') is not None:
+        destination_group_allowlist_list = destination_group_policy.get('applications')
+    else:
+        destination_group_allowlist_list = []
+    print(len(source_group_allowlist_list), 'allowlists are approved in the source policy group', f"'{source_group['name']}'")
+    print(len(destination_group_allowlist_list), 'allowlists are approved in the destination policy group', f"'{destination_group['name']}'")
+
+    # Compare allowlist lists
+    print('\nComparing the two approved allowlists lists')
+    allowlists_in_both = []
+    allowlists_in_source_only = []
+    allowlists_in_destination_only = []
+    for allowlist in source_group_allowlist_list:
+        if allowlist in destination_group_allowlist_list:
+            allowlists_in_both.append(allowlist)
+        else:
+            allowlists_in_source_only.append(allowlist)
+    for allowlist in destination_group_allowlist_list:
+        if allowlist not in source_group_allowlist_list:
+            allowlists_in_destination_only.append(allowlist)
+    print(len(allowlists_in_both), 'allowlists are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
+    print(len(allowlists_in_destination_only), 'allowlists are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
+    print(len(allowlists_in_source_only), 'allowlists are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
+    for allowlist in allowlists_in_source_only:
+        print(allowlist['applicationid'], allowlist['name'], allowlist['version'])
+
+    # Add the missing allowlists to the destination policy group
+    if len(allowlists_in_source_only) > 0:
+        # Sanity check
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo add these {len(allowlists_in_source_only)} allowlists to '{destination_group['name']}' type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(allowlists_in_source_only), 'allowlists to the destination policy group', f"'{destination_group['name']}'")
+                for allowlist in allowlists_in_source_only:
+                    url = base_url + 'group/application/approve?groupid=' + destination_group['groupid'] + '&applicationid=' + allowlist['applicationid']
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
+    else:
+        print('\nNo allowlists to copy')
+    
+    print('\nAllowlists are done')
 
 if policy_components_to_copy['blocklists']:
     print('\nBlocklist copy is enabled but not yet implemented')
@@ -173,34 +291,82 @@ if policy_components_to_copy['paths']:
     for path in paths_in_source_only:
         print(path.replace('\\\\', '\\'))
 
-    # Sanity check
-    if skip_sanity_check_prompt:
-        print('\nSkipping sanity check based on configuration')
-    else:
-        user_response = input(f"\nTo add these {len(paths_in_source_only)} paths to '{destination_group['name']}' type PROCEED and press return: ")
-        if user_response == 'PROCEED':
-            print('Proceeding based on your response:', user_response)
-        else:
-            print('Aborting change based on our response:', user_response)
-            sys.exit(1)
-
     # Add the missing paths to the destination policy group
     if len(paths_in_source_only) > 0:
-        print('\nAdding', len(paths_in_source_only), 'paths to the destination policy group', f"'{destination_group['name']}'")
-        for path in paths_in_source_only:
-            path = path.replace('\\\\', '\\')
-            encoded_path = urllib.parse.quote(path)
-            url = base_url + 'group/path/add?groupid=' + destination_group['groupid'] + "&path=" + encoded_path
-            response = requests.post(url, headers=headers, verify=False)
-            print(url, response)
+            # Sanity check
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo add these {len(paths_in_source_only)} paths to '{destination_group['name']}' type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(paths_in_source_only), 'paths to the destination policy group', f"'{destination_group['name']}'")
+                for path in paths_in_source_only:
+                    path = path.replace('\\\\', '\\')
+                    encoded_path = urllib.parse.quote(path)
+                    url = base_url + 'group/path/add?groupid=' + destination_group['groupid'] + "&path=" + encoded_path
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
     else:
         print('\nNo paths to copy')
     
     print('\nPath Exclusions are done')
 
 if policy_components_to_copy['publishers']:
-    print('\nTrusted Publisher copy is enabled but not yet implemented')
-    pass #not yet implemented
+
+    # Extract Trusted Publishers list from each of the downloaded policies
+    print('\nExtracting the list Trusted Publishers from each of the downloaded policies')
+    if source_group_policy.get('publishers') is not None:
+        source_group_publisher_list = [publisher['name'] for publisher in source_group_policy['publishers']]
+    else:
+        source_group_publisher_list = []
+    if destination_group_policy.get('publishers') is not None:
+        destination_group_publisher_list = [publisher['name'] for publisher in destination_group_policy['publishers']]
+    else:
+        destination_group_publisher_list = []
+    print(len(source_group_publisher_list), 'trusted publishers are in the source policy group', f"'{source_group['name']}'")
+    print(len(destination_group_publisher_list), 'trusted publishers are in the destination policy group', f"'{destination_group['name']}'")
+
+    # Compare publisher Exclusion lists
+    print('\nComparing the two Trusted Publisher lists')
+    publishers_in_both = []
+    publishers_in_source_only = []
+    publishers_in_destination_only = []
+    for publisher in source_group_publisher_list:
+        if publisher in destination_group_publisher_list:
+            publishers_in_both.append(publisher)
+        else:
+            publishers_in_source_only.append(publisher)
+    for publisher in destination_group_publisher_list:
+        if publisher not in source_group_publisher_list:
+            publishers_in_destination_only.append(publisher)
+    print(len(publishers_in_both), 'trusted publishers are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
+    print(len(publishers_in_destination_only), 'trusted publishers are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
+    print(len(publishers_in_source_only), 'trusted publishers are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
+
+    # Add the missing trusted publishers to the destination policy group
+    if len(publishers_in_source_only) > 0:
+        # Sanity check
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo add these {len(publishers_in_source_only)} trusted publishers to '{destination_group['name']}' type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(publishers_in_source_only), 'trusted publishers to the destination policy group', f"'{destination_group['name']}'")
+                for publisher in publishers_in_source_only:
+                    encoded_publisher = urllib.parse.quote(publisher)
+                    url = base_url + 'group/publisher/add?groupid=' + destination_group['groupid'] + "&publisher=" + encoded_publisher
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
+    else:
+        print('\nNo trusted publishers to copy')
+    
+    print('\nTrusted Publishers are done')
 
 if policy_components_to_copy['processes']:
     print('\nTrusted Process copy is enabled but not yet implemented')
