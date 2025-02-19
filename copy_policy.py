@@ -1,17 +1,23 @@
 # copy_policy.py
-# Last updated: 2025-02-14
+# Last updated: 2025-02-18
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
 #
 # Example of how to copy policy components from one Policy Group to another.
 #
 # Known limitations:
-# 1. Some policy components are not yet implemented and will be skipped at runtime.
+# 1. Group Settings copy is not yet implemented and will be skipped at runtime.
 # 2. This script is a additive one-way sync only. It is designed to add "missing" 
 #    elements (those present in the source but not the destination) to the destination,
 #    but it will never delete any data, such as extra elements present in the
 #    destination. To use it to create an identical copy of an existing policy group,
 #    ensure that you are starting with a new blank policy group to use as the
 #    destination.
+# 3. A blocklist enabled in both the source and destination in two different modes
+#    (one Audit and one Enforced) will be treated as "missing" and the destination
+#    policy group configuration for that blocklist will be modified to match the source
+#    group policy's configuration of that blocklist.
+# 4. Every policy element is copied 1 at a time. At scale, this can lead to a long runtime
+#    and also introduce load on the server due to multiple dbgenerate jobs.
 # 
 # Requires an API key with permission to the following API endpoints:
 #   group
@@ -34,7 +40,8 @@ policy_components_to_copy = {
     'blocklists': True,
     'paths': True,
     'publishers': True,
-    'processes': True,
+    'pprocesses': True, #Trusted Parent processes
+    'gprocesses': True, #Trusted GrandParent processes
     'group_settings': True
 }
 
@@ -253,9 +260,83 @@ if policy_components_to_copy['allowlists']:
     
     print('\nAllowlists are done')
 
+
 if policy_components_to_copy['blocklists']:
-    print('\nBlocklist copy is enabled but not yet implemented')
-    pass #not yet implemented
+    
+    # Extract blocklist list from each of the downloaded policies
+    print('\nExtracting the list of enabled blocklists from each of the downloaded policies')
+    if source_group_policy.get('blocklists') is not None:
+        source_group_blocklist_list = source_group_policy.get('blocklists')
+    else:
+        source_group_blocklist_list = []
+    if destination_group_policy.get('blocklists') is not None:
+        destination_group_blocklist_list = destination_group_policy.get('blocklists')
+    else:
+        destination_group_blocklist_list = []
+    print(len(source_group_blocklist_list), 'blocklists are enabled in the source policy group', f"'{source_group['name']}'")
+    print(len(destination_group_blocklist_list), 'blocklists are enabled in the destination policy group', f"'{destination_group['name']}'")
+
+    # Compare blocklist lists
+    print('\nComparing the two blocklists lists')
+    blocklists_in_both = []
+    blocklists_in_source_only = []
+    blocklists_in_destination_only = []
+    for blocklist in source_group_blocklist_list:
+        if blocklist in destination_group_blocklist_list:
+            blocklists_in_both.append(blocklist)
+        else:
+            blocklists_in_source_only.append(blocklist)
+    for blocklist in destination_group_blocklist_list:
+        if blocklist not in source_group_blocklist_list:
+            blocklists_in_destination_only.append(blocklist)
+    print(f"\n{len(blocklists_in_both)} blocklists are enabled and in the same mode in both policy groups ('{source_group['name']}' and '{destination_group['name']}'). Details:")
+    for blocklist in blocklists_in_both:
+        if str(blocklist['audit']) == '1':
+            blocklist_mode = 'Audit'
+        elif str(blocklist['audit']) == '0':
+            blocklist_mode = 'Enforced'
+        else:
+            blocklist_mode = 'Unknown'
+        print(blocklist['name'], f"[{blocklist_mode}]")
+    print(f"\n{len(blocklists_in_destination_only)} blocklists are enabled in the destination '{destination_group['name']}' but not the source '{source_group['name']}', or alternately are enabled in different modes. Details:")
+    for blocklist in blocklists_in_destination_only:
+        if str(blocklist['audit']) == '1':
+            blocklist_mode = 'Audit'
+        elif str(blocklist['audit']) == '0':
+            blocklist_mode = 'Enforced'
+        else:
+            blocklist_mode = 'Unknown'
+        print(blocklist['name'], f"[{blocklist_mode}]")
+    print(f"\n{len(blocklists_in_source_only)} blocklists are enabled in the source '{source_group['name']}' but not the destination '{destination_group['name']}', or alternately are enabled in different modes. Details:")
+    for blocklist in blocklists_in_source_only:
+        if str(blocklist['audit']) == '1':
+            blocklist_mode = 'Audit'
+        elif str(blocklist['audit']) == '0':
+            blocklist_mode = 'Enforced'
+        else:
+            blocklist_mode = 'Unknown'
+        print(blocklist['name'], f"[{blocklist_mode}]")
+
+    # Add the missing blocklists to the destination policy group
+    if len(blocklists_in_source_only) > 0:
+        # Sanity check
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo apply these {len(blocklists_in_source_only)} blocklists to '{destination_group['name']}' in the mode printed above, type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(blocklists_in_source_only), 'blocklists to the destination policy group', f"'{destination_group['name']}'")
+                for blocklist in blocklists_in_source_only:
+                    url = base_url + 'group/blocklist/approve?groupid=' + destination_group['groupid'] + '&blocklistid=' + blocklist['blocklistid'] + '&audit=' + str(blocklist['audit'])
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
+    else:
+        print('\nNo blocklists to copy')    
+    print('\nBlocklists are done')
+
 
 if policy_components_to_copy['paths']:
 
@@ -368,9 +449,106 @@ if policy_components_to_copy['publishers']:
     
     print('\nTrusted Publishers are done')
 
-if policy_components_to_copy['processes']:
-    print('\nTrusted Process copy is enabled but not yet implemented')
-    pass #not yet implemented
+
+if policy_components_to_copy['pprocesses']:
+    print('\nExtracting the list of Trusted Parent Processes (pprocesses) from each of the downloaded policies')
+    if source_group_policy.get('pprocesses') is not None:
+        source_group_pprocesses_list = [process['name'] for process in source_group_policy['pprocesses']]
+    else:
+        source_group_pprocesses_list = []
+    if destination_group_policy.get('pprocesses') is not None:
+        destination_group_pprocesses_list = [process['name'] for process in destination_group_policy['pprocesses']]
+    else:
+        destination_group_pprocesses_list = []
+
+    print('\nComparing the two Trusted Parent Processes lists')
+    pprocesses_in_both = []
+    pprocesses_in_source_only = []
+    pprocesses_in_destination_only = []
+    for process in source_group_pprocesses_list:
+        if process in destination_group_pprocesses_list:
+            pprocesses_in_both.append(process)
+        else:
+            pprocesses_in_source_only.append(process)
+    for process in destination_group_pprocesses_list:
+        if process not in source_group_pprocesses_list:
+            pprocesses_in_destination_only.append(process)
+    print(len(pprocesses_in_both), 'Trusted Parent Processes are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
+    print(len(pprocesses_in_destination_only), 'Trusted Parent Processes are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
+    print(len(pprocesses_in_source_only), 'Trusted Parent Processes are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
+    for process in pprocesses_in_source_only:
+        print(process.replace('\\\\', '\\'))
+
+    if len(pprocesses_in_source_only) > 0:
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo add these {len(pprocesses_in_source_only)} Trusted Parent Processes to '{destination_group['name']}' type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(pprocesses_in_source_only), 'Trusted Parent Processes to the destination policy group', f"'{destination_group['name']}'")
+                for process in pprocesses_in_source_only:
+                    process = process.replace('\\\\', '\\')
+                    encoded_process = urllib.parse.quote(process)
+                    url = base_url + 'group/process/add?type=pprocess&groupid=' + destination_group['groupid'] + "&process=" + encoded_process
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
+    else:
+        print('\nNo pprocesses to copy')
+
+    print('\nTrused Parent Processes are done')
+
+if policy_components_to_copy['gprocesses']:
+    print('\nExtracting the list of Trusted Grandparent Processes (gprocesses) from each of the downloaded policies')
+    if source_group_policy.get('gprocesses') is not None:
+        source_group_gprocesses_list = [process['name'] for process in source_group_policy['gprocesses']]
+    else:
+        source_group_gprocesses_list = []
+    if destination_group_policy.get('gprocesses') is not None:
+        destination_group_gprocesses_list = [process['name'] for process in destination_group_policy['gprocesses']]
+    else:
+        destination_group_gprocesses_list = []
+
+    print('\nComparing the two Trusted Grandparent Processes lists')
+    gprocesses_in_both = []
+    gprocesses_in_source_only = []
+    gprocesses_in_destination_only = []
+    for process in source_group_gprocesses_list:
+        if process in destination_group_gprocesses_list:
+            gprocesses_in_both.append(process)
+        else:
+            gprocesses_in_source_only.append(process)
+    for process in destination_group_gprocesses_list:
+        if process not in source_group_gprocesses_list:
+            gprocesses_in_destination_only.append(process)
+    print(len(gprocesses_in_both), 'Trusted Grandparent Processes are in both policy groups', f"('{source_group['name']}'", 'and', f"'{destination_group['name']}')")
+    print(len(gprocesses_in_destination_only), 'Trusted Grandparent Processes are in the destination', f"'{destination_group['name']}'", 'but not the source', f"'{source_group['name']}'")
+    print(len(gprocesses_in_source_only), 'Trusted Grandparent Processes are in the source', f"'{source_group['name']}'", 'but not destination', f"'{destination_group['name']}'", '\n')
+    for process in gprocesses_in_source_only:
+        print(process.replace('\\\\', '\\'))
+
+    if len(gprocesses_in_source_only) > 0:
+        if skip_sanity_check_prompt:
+            print('\nSkipping sanity check based on configuration')
+        else:
+            user_response = input(f"\nTo add these {len(gprocesses_in_source_only)} Trusted Grandparent Processes to '{destination_group['name']}' type PROCEED and press return: ")
+            if user_response == 'PROCEED':
+                print('Proceeding based on your response:', user_response)
+                print('\nAdding', len(gprocesses_in_source_only), 'Trusted Grandparent Processes to the destination policy group', f"'{destination_group['name']}'")
+                for process in gprocesses_in_source_only:
+                    process = process.replace('\\\\', '\\')
+                    encoded_process = urllib.parse.quote(process)
+                    url = base_url + 'group/process/add?type=gprocess&groupid=' + destination_group['groupid'] + "&process=" + encoded_process
+                    response = requests.post(url, headers=headers, verify=False)
+                    print(url, response)
+            else:
+                print('Aborting change based on our response:', user_response)
+    else:
+        print('\nNo gprocesses to copy')
+    
+    print('\nTrused Grandparent Processes are done')
 
 if policy_components_to_copy['group_settings']:
     print('\nGroup Settings copy is enabled but not yet implemented')
