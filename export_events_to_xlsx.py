@@ -7,7 +7,7 @@
 
 # Import required libraries
 import requests, json, urllib3, datetime, yaml, pandas, sys, os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
 # Disable SSL warnings
@@ -20,16 +20,17 @@ def read_config(config_file_name='airlock.yaml'):
         sys.exit(1)
     with open(config_file_name, 'r') as file:
         config = yaml.safe_load(file)
-    print('Read config from', config_file_name, 'for server', config['server_name'])
+    print('Read config from', config_file_name, 'for server', config['server_name'], 'and event types', config['event_types'])
     return config
 
 # Method that calculates the earliest MongoDB ObjectId (database checkpoint) for some number of hours ago
 def objectid_n_hours_ago(n):
-    datetime_n_hours_ago = datetime.now() - timedelta(hours=n)
-    print('Calculating objectid for', datetime_n_hours_ago)
+    datetime_n_hours_ago = datetime.now(timezone.utc) - timedelta(hours=n)
+    print('Calculating earliest objectid for documents ingested', n, 'hours ago:', datetime_n_hours_ago)
     timestamp = int(datetime_n_hours_ago.timestamp())
-    objectid_hex = hex(timestamp)[2:] + '0000000000000000'
-    return ObjectId(objectid_hex)
+    objectid = ObjectId(hex(timestamp)[2:] + '0000000000000000')
+    print('Result:', objectid)
+    return objectid
 
 # Method that downloads events from the Airlcok Server
 def get_events(config):
@@ -61,6 +62,7 @@ def get_events(config):
 
             #increment checkpoint using value from last event returned in this page
             config['checkpoint'] = events[len(events)-1]['checkpoint']
+            print('Checkpoint on last event: ', config['checkpoint'])
 
             #append new events to list of collected events
             collected_events += events
@@ -125,21 +127,19 @@ support. No warranty, express or implied, is provided, and the use of this scrip
     config = read_config()
 
     # Ask how far back to look at events
-    days = int(input('How many days worth of events do you want to export? '))
+    days = int(input("\nEnter the number of days to export, looking back from today's date (e.g., entering '7' will export events from the last week): "))
     hours = 24 * days
 
-    # Calculate a MongoDB ObjectId which is used as database checkpoint to download events
-    print('Calculating database checkpoint for exporting events')
+    # Calculate a MongoDB ObjectId base on lookback period, set this as initial checkpoint
     objectid = objectid_n_hours_ago(hours)
-    print('Earliest possible checkpoint for exactly', hours, 'hours ago:', objectid)
     config['checkpoint'] = str(objectid)
     
     # Download the events
-    print('Getting events from server')
+    print('\nGetting events from server')
     events = get_events(config)
 
     # Load the events into a DataFrame
-    print('Loading events into a DataFrame')
+    print('\nLoading events into a DataFrame')
     events_df = pandas.DataFrame(events)
     print(len(events_df), 'rows are in DataFrame')
 
@@ -161,16 +161,18 @@ support. No warranty, express or implied, is provided, and the use of this scrip
     # print('Removing events for signed files, leaving only unsigned files remaining')
     # events_df = events_df[events_df['publisher'] == 'Not Signed']
     # print(len(events_df), 'rows are in DataFrame')
-         
+
+    print('\nExporting events from DataFrame to disk')    
+
     # Calculate file name for export
     server_alias = config['server_name'].split('.')[0]
     timestamp = datetime.today().strftime('%Y-%m-%d_%H.%M')
     file_name = 'airlock_events_' + server_alias + '_' + timestamp + '_last_' + str(days) + '_days.xlsx'
-    print('Exporting', len(events_df), 'events to', file_name)
+    print('Data will be written to', file_name)
 
     # Write data to disk
     events_df.to_excel(file_name, index=False)
-    print('Done')
+    print('\nDone!')
 
 if __name__ == "__main__":
 	main()
