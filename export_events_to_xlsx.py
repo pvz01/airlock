@@ -1,11 +1,16 @@
 # export_events_to_xlsx.py
-# Version: 1.0
-# Last updated: 2024-09-24
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
+#
+# This script is published under the GNU General Public License v3.0 and is intended as a working example 
+# of how to interact with the Airlock API. It is not a commercial product and is provided 'as-is' with no 
+# support. No warranty, express or implied, is provided, and the use of this script is at your own risk.
 
+# Import required libraries
 import requests, json, urllib3, datetime, yaml, pandas, sys, os
 from datetime import datetime, timedelta
 from bson import ObjectId
+
+# Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Method that reads configuration from a YAML file on disk
@@ -37,7 +42,7 @@ def get_events(config):
     request_headers = {'X-ApiKey': config['api_key']}
     request_body = {'type': config['event_types']}
 
-    #optional - uncomment line below and provide a list of Policy Group names
+    #OPTIONAL: uncomment do use server side filtering on Policy Group(s)
     #request_body['policy'] = ['Policy Group Name 1', 'Policy Group Name 2']
 
     #loop until break statement
@@ -84,6 +89,10 @@ but before it is written to disk, open the script in a text editor of your choic
 examples along with Pandas DataFrame documentation here: 
 https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.drop.html
 
+If you are interested in events for only a subset of your Policy Groups, it is recommended to use
+server-side filtering. Reference the commented out example in the get_events() method to accomplish
+this.
+
 This script makes no changes. It is a data extract tool only.
 
 This script reads server configuration from a configuration file named airlock.yaml. Use any text editor
@@ -91,7 +100,7 @@ to create this file based on the template below, then save in the same folder as
 
 server_name: foo.bar.managedwhitelisting.com
 api_key: your-api-key
-event_types:
+event_types:  # Define a list of 1 or more event types to download
 #  - 0  #Trusted Execution
 #  - 1  #Blocked Execution
   - 2  #Untrusted Execution [Audit]
@@ -134,9 +143,9 @@ support. No warranty, express or implied, is provided, and the use of this scrip
     events_df = pandas.DataFrame(events)
     print(len(events_df), 'rows are in DataFrame')
 
-    # Manipulate the events in the DataFrame
+    # Manipulate the events in the DataFrame before exporting them
     #
-    # TODO: Add or adjust filtering here. Some examples below.
+    # OPTIONAL: Add or adjust client side filtering or sorting here. Examples below.
     #
     # Example 1: filter on file name ends with .exe
     # print('Removing all except .exe files')
