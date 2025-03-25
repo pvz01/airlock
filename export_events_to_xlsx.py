@@ -3,17 +3,22 @@
 # Last updated: 2024-09-24
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
 
-import requests, json, urllib3, datetime, yaml, pandas
+import requests, json, urllib3, datetime, yaml, pandas, sys, os
 from datetime import datetime, timedelta
 from bson import ObjectId
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def read_config(config_file_name):
+# Method that reads configuration from a YAML file on disk
+def read_config(config_file_name='airlock.yaml'):
+    if not os.path.exists(config_file_name):
+        print('ERROR: The configuration file', config_file_name, 'does not exist.')
+        sys.exit(1)
     with open(config_file_name, 'r') as file:
         config = yaml.safe_load(file)
     print('Read config from', config_file_name, 'for server', config['server_name'])
     return config
 
+# Method that calculates the earliest MongoDB ObjectId (database checkpoint) for some number of hours ago
 def objectid_n_hours_ago(n):
     datetime_n_hours_ago = datetime.now() - timedelta(hours=n)
     print('Calculating objectid for', datetime_n_hours_ago)
@@ -21,32 +26,50 @@ def objectid_n_hours_ago(n):
     objectid_hex = hex(timestamp)[2:] + '0000000000000000'
     return ObjectId(objectid_hex)
 
+# Method that downloads events from the Airlcok Server
 def get_events(config):
+
+    #define a list to store the downloaded events
     collected_events = []
+    
+    #define static configuration used for all requests to server
     request_url = 'https://' + config['server_name'] + ':3129/v1/logging/exechistories'
     request_headers = {'X-ApiKey': config['api_key']}
     request_body = {'type': config['event_types']}
 
+    #optional - uncomment line below and provide a list of Policy Group names
+    #request_body['policy'] = ['Policy Group Name 1', 'Policy Group Name 2']
+
+    #loop until break statement
     while True:
-        #get next (up to) 10K events from server
+
+        #get next page of events from server starting with current checkpoint
         request_body['checkpoint'] = config['checkpoint']
         response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
         events = response.json()['response']['exechistories']
+        if events is None:
+            events = []
         print(request_url, 'checkpoint >', request_body['checkpoint'], 'returned', len(events), 'records')
+
         #check if any events were returned
         if len(events) > 0:
-            #increment the checkpoint using value from last event
+
+            #increment checkpoint using value from last event returned in this page
             config['checkpoint'] = events[len(events)-1]['checkpoint']
+
             #append new events to list of collected events
             collected_events += events
-            #less than 10K events means this was the last batch (page)
+            
+            #check if this page was <10K events, if yes this means this is the last page
             if len(events) < 10000:
                 break
-        #no events returned means we already got the last batch (page)
+        
+        #if no events were returned, we already have all the events
         else:
             break
 
     print(len(collected_events), 'total events were downloaded')
+
     return collected_events
 
 def main():
@@ -63,21 +86,21 @@ https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.drop
 
 This script makes no changes. It is a data extract tool only.
 
-This script reads server configuration from a YAML configuration file. Use any text editor to create a 
-configuration file with the syntax below, and place it in the same folder as this Python script.
+This script reads server configuration from a configuration file named airlock.yaml. Use any text editor
+to create this file based on the template below, then save in the same folder as this Python script.
 
 server_name: foo.bar.managedwhitelisting.com
 api_key: your-api-key
 event_types:
-  - 0  #Trusted Execution
-  - 1  #Blocked Execution
+#  - 0  #Trusted Execution
+#  - 1  #Blocked Execution
   - 2  #Untrusted Execution [Audit]
-  - 3  #Untrusted Execution [OTP]
-  - 4  #Trusted Path Execution
-  - 5  #Trusted Publisher Execution
-  - 6  #Blocklist Execution
-  - 7  #Blocklist Execution [Audit]
-  - 8  #Trusted Process Execution
+#  - 3  #Untrusted Execution [OTP]
+#  - 4  #Trusted Path Execution
+#  - 5  #Trusted Publisher Execution
+#  - 6  #Blocklist Execution
+#  - 7  #Blocklist Execution [Audit]
+#  - 8  #Trusted Process Execution
 
 The API key provided in the YAML must have permission to the following API endpoint(s):
 	logging/exechistories
@@ -89,12 +112,8 @@ support. No warranty, express or implied, is provided, and the use of this scrip
 	"""
     print(readme_message)
 
-    # Get configuration from a YAML on disk
-    config_file_name = input('Enter the name of a YAML file containing server configuration, or press return to accept default (airlock.yaml): ')
-    if config_file_name == '':
-        config = read_config('airlock.yaml')
-    else:
-        config = read_config(config_file_name)
+    # Get configuration
+    config = read_config()
 
     # Ask how far back to look at events
     days = int(input('How many days worth of events do you want to export? '))
@@ -120,15 +139,20 @@ support. No warranty, express or implied, is provided, and the use of this scrip
     # TODO: Add or adjust filtering here. Some examples below.
     #
     # Example 1: filter on file name ends with .exe
-    print('Removing all except .exe files')
-    events_df = events_df[events_df['filename'].str.lower().str.endswith('.exe')]
-    print(len(events_df), 'rows are in DataFrame')
+    # print('Removing all except .exe files')
+    # events_df = events_df[events_df['filename'].str.lower().str.endswith('.exe')]
+    # print(len(events_df), 'rows are in DataFrame')
     #
     # Example 2: de-duplicate based on sha256, keeping only the first occurrence of each hash
-    print('De-duplicating based on file hash (sha256)')
-    events_df = events_df.drop_duplicates(subset='sha256', keep='first')
-    print(len(events_df), 'rows are in DataFrame')
-            
+    # print('De-duplicating based on file hash (sha256)')
+    # events_df = events_df.drop_duplicates(subset='sha256', keep='first')
+    # print(len(events_df), 'rows are in DataFrame')
+    #
+    # Example 3: filter to exclude signed files
+    # print('Removing events for signed files, leaving only unsigned files remaining')
+    # events_df = events_df[events_df['publisher'] == 'Not Signed']
+    # print(len(events_df), 'rows are in DataFrame')
+         
     # Calculate file name for export
     server_alias = config['server_name'].split('.')[0]
     timestamp = datetime.today().strftime('%Y-%m-%d_%H.%M')
