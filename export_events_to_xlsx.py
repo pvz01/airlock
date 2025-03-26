@@ -4,6 +4,9 @@
 # This script is published under the GNU General Public License v3.0 and is intended as a working example 
 # of how to interact with the Airlock API. It is not a commercial product and is provided 'as-is' with no 
 # support. No warranty, express or implied, is provided, and the use of this script is at your own risk.
+#
+# To install dependencies, run this command:
+#     pip install requests urllib3 pyyaml pandas pymongo openpyxl
 
 # Import required libraries
 import requests, json, urllib3, datetime, yaml, pandas, sys, os
