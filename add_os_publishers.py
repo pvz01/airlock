@@ -89,11 +89,11 @@ config = read_config()
 # Download list of parent policy groups on the server
 groups = get_parent_groups(config['server_name'], config['api_key'])
 
-# Read list of existing trusted publishers for each policy group
+# Read list of existing trusted publishers for each parent policy group
 for group in groups:
     group['trusted_publishers'] = get_trusted_publishers(group, config['server_name'], config['api_key'])
 
-# Define a list of publishers required to stay out of Airlock Safe Mode
+# Define a list of publishers required to stay out of [Airlock] Safe Mode
 required_publishers = ['Microsoft Corporation', 
                        'Microsoft Windows', 
                        'Microsoft Windows Publisher', 
@@ -103,7 +103,7 @@ required_publishers = ['Microsoft Corporation',
                        'Rocky (Linux)', 
                        'Rocky Enterprise Software Foundation (Linux)']
 
-# Iterate throught the policy groups, adding any missing publishers to parent policy group
+# Iterate throught the list of parent policy groups, adding any required publishers that are missing to each
 for group in groups:
     missing_publishers = []
     for publisher in required_publishers:
