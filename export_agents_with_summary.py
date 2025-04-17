@@ -126,9 +126,12 @@ def add_group_name_to_agents(agents, groups):
 def add_policymode_to_agents(agents, groups):
 	print('Adding policymode to agents list')
 	for agent in agents:
-		for group in groups:
-			if agent['groupid'] == group['groupid']:
-				agent['policymode'] = group['policymode']
+		if agent['groupid'] == 'Unmanaged':
+			agent['policymode'] = 'Unmanaged'
+		else:
+			for group in groups:
+				if agent['groupid'] == group['groupid']:
+					agent['policymode'] = group['policymode']
 	return agents
 
 def add_days_offline_to_agents(agents):
