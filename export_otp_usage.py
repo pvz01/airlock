@@ -17,8 +17,8 @@
 # To create the YAML, copy the example below and paste it into any text editor, make the
 # necessary edits, then save it as airlock.yaml in the same directory as the script.
 '''
-api_key: foo.bar.managedwhitelisting.com
-server_name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+server_name: foo.bar.managedwhitelisting.com
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 '''
 
 # Import required libraries
