@@ -26,13 +26,16 @@ api_key: yourapikey
 config_file_name = 'airlock.yaml'
 
 # Define how many time to query the server for agent inventory. More produces better data but increases runtime.
-iterations = 1440
+iterations = 480
 
 # Define how long to wait between each iteration. Less is better but increases network load. I recommend always using the default (60 seconds).
 sleep_time = 60 
 
 # Define whether the output file should include a second sheet (tab) with the "singles", meaning the devices that are not showing signs of agentid collission
 include_singles = True
+
+# Define whether to take action and clean up the duplicates by removing the associated agentids from the server
+enable_remediation = True
 
  
 # RUNTIME
@@ -44,7 +47,7 @@ from datetime import datetime, timezone
 # Get Airlock Server config
 with open(config_file_name, 'r') as file:
     config = yaml.safe_load(file)
-print('Read config for Airlock Server', config['server_name'], 'from', config_file_name)
+print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Read config for Airlock Server', config['server_name'], 'from', config_file_name)
 
 # Create an dictionary to store collected data
 collected_data = {}
@@ -63,14 +66,14 @@ iteration_counter = 1
 # Capture timestamp at start
 start_time = datetime.now(timezone.utc)
 
-for _ in range(iterations):
+while True:
  
     try:
         # Query server to get the agent list
         response = requests.post(url, headers=headers, json=payload, verify=True)
         response.raise_for_status()
         agents = response.json().get('response', {}).get('agents', [])
-        print(datetime.now(timezone.utc), len(agents), 'agents downloaded from server on iteration', iteration_counter, 'of', iterations)
+        print(datetime.now(timezone.utc).strftime("%H:%M:%S"), len(agents), 'agents downloaded from server on iteration', iteration_counter, 'of', iterations)
 
         # Process the data
         for agent in agents:
@@ -81,16 +84,24 @@ for _ in range(iterations):
             else:
                 if hostname not in collected_data[agentid]:
                     collected_data[agentid].append(hostname)
-                    counter += 1
-        print(datetime.now(timezone.utc), counter, 'total hostnames without their own unique agentid have been found')
+                    if len(collected_data[agentid]) > 2:
+                        counter += 1
+                    else:
+                        counter += 2
+        print(datetime.now(timezone.utc).strftime("%H:%M:%S"), counter, 'total hostnames without their own unique agentid have been found')
 
     except requests.exceptions.RequestException as e:
-        print(datetime.now(timezone.utc), 'Error querying server:', e)
+        print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Error querying server:', e)
     
-    #Wait before repeating loop
-    time.sleep(sleep_time)
-    
+    # Increment iteration_counter
     iteration_counter += 1
+    
+    # Check if additional iteraitons remain, and if yes sleep before repeating
+    if iteration_counter < iterations + 1:
+        time.sleep(sleep_time)
+    else:
+        # Configurated iterations complete. Break out of while True block.
+        break
 
 # Capture timestamp at end
 end_time = datetime.now(timezone.utc)
@@ -118,11 +129,30 @@ end_timestamp = end_time.strftime("%Y-%m-%d_%H-%M_utc")
 duplicates_agentid_count = len(duplicates_df)
 duplicates_hostname_count = duplicates_df['hostname_count'].sum()
 export_filename = f'airlock_agentid_collision_report_{server_alias}_{start_timestamp}_to_{end_timestamp}_{duplicates_agentid_count}_{duplicates_hostname_count}.xlsx'
-print('Exporting results to', export_filename)
+print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Exporting results to', export_filename)
 
 # Export the split DataFrames to Excel
 with pandas.ExcelWriter(export_filename) as writer:
     duplicates_df.to_excel(writer, sheet_name='duplicates', index=False)
     if include_singles:
         singles_df.to_excel(writer, sheet_name='singles', index=False)
-print('Done')
+
+# Remove offending agentid values if remediation is enabled
+if enable_remediation:
+    
+    agentid_list = duplicates_df['agentid'].dropna().tolist()
+    
+    if len(agentid_list) > 0:
+        batch_size = 10
+        print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Remediation is enabled. Proceeding with removal of', len(agentid_list), 'agentids from the server in batches of', batch_size, '.')
+        url = 'https://' + config['server_name'] + ':3129/v1/agent/remove'
+        
+        for i in range(0, len(agentid_list), batch_size):
+            batch = agentid_list[i:i + batch_size]
+            payload = {'agentid': batch}
+            time.sleep(1)
+            print(datetime.now(timezone.utc).strftime("%H:%M:%S"), f'Requesting removal of {len(batch)} agentids:', batch)
+            response = requests.post(url, headers=headers, json=payload, verify=True)
+            print(datetime.now(timezone.utc).strftime("%H:%M:%S"), response, response.text)
+
+print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Done.')
