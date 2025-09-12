@@ -14,8 +14,7 @@ api_key: bar
 '''
 
 #import libraries and suppress SSL warnings
-import requests, json, urllib3, yaml, csv
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import requests, json, yaml, csv
 
 #read a CSV file on disk and return a list of dictionaries
 def read_csv_as_dicts(file_path):
@@ -52,7 +51,7 @@ def get_blocklists(config):
     request_url = 'https://' + config['server_name'] + ':3129/v1/blocklist'
     request_headers = {'X-ApiKey': config['api_key']}
     #print(request_url)
-    response = requests.post(request_url, headers=request_headers, verify=False)
+    response = requests.post(request_url, headers=request_headers)
     #print(response.text)
     blocklists = response.json()['response']['blocklists']
     print('Found', len(blocklists), 'blocklists')
@@ -66,7 +65,7 @@ def add_hashes_to_blocklist(config, hash_list, blocklistid):
     request_body = {'blocklistid': blocklistid,
                     'hashes': hash_list}
     #print(request_url, request_body)
-    response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+    response = requests.post(request_url, headers=request_headers, json=request_body)
     #print(response.text)
     print(response.json()['error'])
     
@@ -76,7 +75,7 @@ def remove_from_all_allowlists(config, hash_list):
     request_headers = {'X-ApiKey': config['api_key']}
     request_body = {'hashes': hash_list}
     print(request_url, request_body)
-    response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+    response = requests.post(request_url, headers=request_headers, json=request_body)
     print(response.text)
 
 #read airlock server config from a YAML file

@@ -6,14 +6,6 @@
 # 5. Approve app capture form step 3 in all of the parent groups
 
 import requests, json, hashlib, os, random
-verify_ssl = True
-
-#uncomment code block below to suppress ssl warnings in lab environment
-"""
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-verify_ssl = False
-"""
 
 #define Airlock server config
 base_url = 'https://fqdn-of-server:3129'
@@ -30,12 +22,12 @@ payload = {'hashes':  [
                  'path': fake_path}
             ]
           }
-response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+response = requests.post(request_url, headers=headers, json=payload)
 print(response.status_code, request_url)
 
 #get a listing of app capture categories
 request_url = base_url + '/v1/application/categories'
-response = requests.post(request_url, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, headers=headers)
 print(response.status_code, request_url)
 app_categories = response.json()
 
@@ -51,7 +43,7 @@ payload = {'name': application_name,
           'version': '1.0',
           'categoryid': category_id
           }
-response = requests.post(request_url, json=payload, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, json=payload, headers=headers)
 print(response.status_code, request_url)
 app_capture_id = response.json()['response']['applicationid']
 print('app_capture_id is', app_capture_id)
@@ -61,12 +53,12 @@ request_url = base_url + '/v1/hash/application/add'
 payload = {'applicationid': app_capture_id,
            'hashes': [random_hash]
           }
-response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+response = requests.post(request_url, headers=headers, json=payload)
 print(response.status_code, request_url)
 
 #get a list of groups (policies)
 request_url = base_url + '/v1/group'
-response = requests.post(request_url, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, headers=headers)
 print(response.status_code, request_url)
 groups = response.json()['response']['groups']
 
@@ -77,7 +69,7 @@ for group in groups:
         request_url = base_url + '/v1/group/application/approve'
         payload = {'groupid': group['groupid'],
                    'applicationid': app_capture_id}
-        response = requests.post(request_url, json=payload, headers=headers, verify=verify_ssl)
+        response = requests.post(request_url, json=payload, headers=headers)
         print(response.status_code, request_url)
     else:
         print('Skipping group', group['name'], 'because it is a child of', group['parent'], 'and will inherit allowed application from this parent')

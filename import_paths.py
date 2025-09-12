@@ -9,10 +9,6 @@ import json
 import sys
 import yaml
 
-# Suppress ssl warnings
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 # Read airlock server config from a YAML file
 config_file_name = 'airlock.yaml'
 with open(config_file_name, 'r') as file:
@@ -45,7 +41,7 @@ for path in paths:
 # Get list of groups
 request_url = base_url + 'v1/group'
 print('INFO: Getting list of groups from the server')
-response = requests.post(request_url, headers=headers, verify=False)
+response = requests.post(request_url, headers=headers)
 if response.status_code != 200:
 	print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 	sys.exit(0)
@@ -71,7 +67,7 @@ errors = []
 successes = []
 for path in paths:
 	payload['path'] = path
-	response = requests.post(request_url, headers=headers, json=payload, verify=False)
+	response = requests.post(request_url, headers=headers, json=payload)
 	if response.status_code == 200:
 		print('INFO: Successfully added', path, 'to group', payload['groupid'])
 		successes.append(path)

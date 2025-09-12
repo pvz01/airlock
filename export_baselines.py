@@ -13,7 +13,7 @@ headers = {'X-APIKey': 'api-key-here'}
 
 #get list of baselines
 request_url = base_url + '/v1/baseline'
-response = requests.post(request_url, headers=headers, verify=False)
+response = requests.post(request_url, headers=headers)
 print(response.status_code, request_url)
 baselines = response.json()['response']['baselines']
 print('Found', len(baselines), 'baselines')
@@ -24,7 +24,7 @@ for baseline in baselines:
     #get the baseline from the server
     request_url = base_url + '/v1/baseline/export'
     payload = {'baselineid': baseline['baselineid']}
-    response = requests.post(request_url, headers=headers, json=payload, verify=False)
+    response = requests.post(request_url, headers=headers, json=payload)
     print(response.status_code, request_url)
     xml_content = response.text
     

@@ -9,12 +9,10 @@
 #     pip install requests urllib3 pyyaml pandas pymongo openpyxl
 
 # Import required libraries
-import requests, json, urllib3, datetime, yaml, pandas, sys, os
+import requests, json, datetime, yaml, pandas, sys, os
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Method that reads configuration from a YAML file on disk
 def read_config(config_file_name='airlock.yaml'):
@@ -54,7 +52,7 @@ def get_events(config):
 
         #get next page of events from server starting with current checkpoint
         request_body['checkpoint'] = config['checkpoint']
-        response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+        response = requests.post(request_url, headers=request_headers, json=request_body)
         events = response.json()['response']['exechistories']
         if events is None:
             events = []

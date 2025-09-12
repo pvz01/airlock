@@ -39,8 +39,7 @@ categories:
   - name: General User Population
 '''
 
-import json, sys, requests, datetime, pandas, xlsxwriter, openpyxl, dateutil, urllib3, yaml, os
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import json, sys, requests, datetime, pandas, xlsxwriter, openpyxl, dateutil, yaml, os
 
 def read_config(file_name='airlock.yaml'):
 	print('Reading configuration from', file_name)
@@ -79,7 +78,7 @@ def read_config(file_name='airlock.yaml'):
 def get_agents():
 	print('Getting agents list from server')
 	request_url = f"https://{server_name}:3129/v1/agent/find"
-	response = requests.post(request_url, headers=request_headers, json={}, verify=False)
+	response = requests.post(request_url, headers=request_headers, json={})
 	print(request_url, response)
 	agents = response.json()['response']['agents']
 	print('Downloaded', len(agents), 'agents')
@@ -88,7 +87,7 @@ def get_agents():
 def get_groups():
 	print('Getting groups list from server')
 	request_url = f"https://{server_name}:3129/v1/group"
-	response = requests.post(request_url, headers=request_headers, verify=False)
+	response = requests.post(request_url, headers=request_headers)
 	print(request_url, response)
 	groups = response.json()['response']['groups']
 	print('Downloaded', len(groups), 'policy groups')
@@ -98,7 +97,7 @@ def add_policymode_to_groups(groups):
 	print('Adding policymode to groups list')
 	for group in groups:
 		request_url = f"https://{server_name}:3129/v1/group/policies?groupid={group['groupid']}"
-		response = requests.post(request_url, headers=request_headers, verify=False)
+		response = requests.post(request_url, headers=request_headers)
 		print(request_url, response)
 		if (1 == int(response.json()['response']['auditmode'])):
 			group['policymode'] = 'Audit Mode'

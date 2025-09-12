@@ -63,7 +63,6 @@ import yaml
 import datetime
 import sendgrid
 import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) #suppress ssl warnings
 
 # -- DEFINE A SERIES OF METHODS USED AT RUNTIME --
 
@@ -93,7 +92,7 @@ def get_events(server_name, api_key, event_types, directoryid, tenantid, checkpo
 	while True:
 		request_body['checkpoint'] = checkpoint
 		print(now(format='%H:%M:%S'), request_url)
-		response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+		response = requests.post(request_url, headers=request_headers, json=request_body)
 		print(now(format='%H:%M:%S'), response)
 		exechistories = response.json()['response']['exechistories']
 		print(now(format='%H:%M:%S'), len(exechistories), 'events returned')

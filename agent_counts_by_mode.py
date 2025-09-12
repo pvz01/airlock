@@ -27,16 +27,13 @@ import requests
 import json
 import urllib3
 
-#suppress ssl warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 #build headers used for requests to server
 headers = {'X-APIKey': apikey}
 
 #get list of active otp sessions
 url = 'https://' + server_fqdn + ':3129/v1/otp/usage'
 body = {'status': '1'} #get active OTP usages only
-response = requests.post(url, headers=headers, json=body, verify=False)
+response = requests.post(url, headers=headers, json=body)
 active_otp_usages = response.json()['response']['otpusage']
 
 #build list of agent clientids in OTP mode
@@ -49,14 +46,14 @@ if active_otp_usages is not None:
 #get list of groups
 url = 'https://' + server_fqdn + ':3129/v1/group'
 body = {}
-response = requests.post(url, headers=headers, json=body, verify=False)
+response = requests.post(url, headers=headers, json=body)
 groups = response.json()['response']['groups']
 
 #read policy for each group and record auditmode
 for group in groups:
     url = 'https://' + server_fqdn + ':3129/v1/group/policies'
     body = {'groupid': group['groupid']}
-    response = requests.post(url, headers=headers, json=body, verify=False)
+    response = requests.post(url, headers=headers, json=body)
     group['auditmode'] = response.json()['response']['auditmode']
 
 #build list of groupids where enforcement mode is enabled
@@ -68,7 +65,7 @@ for group in groups:
 #get list of agents
 url = 'https://' + server_fqdn + ':3129/v1/agent/find'
 body = {}
-response = requests.post(url, headers=headers, json=body, verify=False)
+response = requests.post(url, headers=headers, json=body)
 agents = response.json()['response']['agents']
 
 #define lists to organize agents by category

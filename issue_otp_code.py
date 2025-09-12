@@ -21,10 +21,6 @@ import json
 import sys
 import yaml
 
-#suppress SSL warnings
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 #read server config
 with open(config_file_name, 'r') as file:
     config = yaml.safe_load(file)
@@ -40,7 +36,7 @@ request_headers = {'X-APIKey': config['api_key']}
 request_url = base_url + 'agent/find'
 request_body = {'hostname': hostname}
 print('Querying server for agents with hostname', hostname)
-response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+response = requests.post(request_url, headers=request_headers, json=request_body)
 agents = response.json()['response']['agents']
 if agents is None:
     agents = []
@@ -65,6 +61,6 @@ request_body = {'duration': duration,
                 'agentid': agentid,
                 'purpose': purpose}
 print('Sending request to server at', request_url, 'with payload', request_body)
-response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+response = requests.post(request_url, headers=request_headers, json=request_body)
 otpcode = response.json()['response']['otpcode']
 print('OTP Code is', otpcode)

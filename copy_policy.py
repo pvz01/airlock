@@ -70,7 +70,6 @@ skip_sanity_check_prompt = False
 
 # Import required libaries
 import requests, json, yaml, sys, urllib3, urllib.parse
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Read Airlock Server configuration from YAML on disk
 print('\nReading configuration from', config_file_name)
@@ -98,7 +97,7 @@ headers = {'X-ApiKey': api_key}
 # Get Policy Groups list
 print('\nGetting list of Policy Groups')
 url = base_url + 'group'
-response = requests.post(url, headers=headers, verify=False)
+response = requests.post(url, headers=headers)
 print(url, response)
 groups = response.json()['response']['groups']
 print()
@@ -138,7 +137,7 @@ print('\nBeginning copy of policy components based on this configuration:\n', js
 # Get policy for source
 print('\nGetting policy for the source policy group', f"'{source_group['name']}'")
 url = base_url + 'group/policies?groupid=' + source_group['groupid']
-response = requests.post(url, headers=headers, verify=False)
+response = requests.post(url, headers=headers)
 print(url, response)
 source_group_policy = response.json()['response']
 #print(json.dumps(source_group_policy, indent=4))
@@ -146,7 +145,7 @@ source_group_policy = response.json()['response']
 # Get policy for destination
 print('\nGetting policy for the destination policy group', f"'{destination_group['name']}'")
 url = base_url + 'group/policies?groupid=' + destination_group['groupid']
-response = requests.post(url, headers=headers, verify=False)
+response = requests.post(url, headers=headers)
 print(url, response)
 destination_group_policy = response.json()['response']
 #print(json.dumps(destination_group_policy, indent=4))
@@ -197,7 +196,7 @@ if policy_components_to_copy['baselines']:
                 print('\nAdding', len(baselines_in_source_only), 'baselines to the destination policy group', f"'{destination_group['name']}'")
                 for baseline in baselines_in_source_only:
                     url = base_url + 'group/baseline/approve?groupid=' + destination_group['groupid'] + '&baselineid=' + baseline['baselineid']
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)
@@ -251,7 +250,7 @@ if policy_components_to_copy['allowlists']:
                 print('\nAdding', len(allowlists_in_source_only), 'allowlists to the destination policy group', f"'{destination_group['name']}'")
                 for allowlist in allowlists_in_source_only:
                     url = base_url + 'group/application/approve?groupid=' + destination_group['groupid'] + '&applicationid=' + allowlist['applicationid']
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)
@@ -329,7 +328,7 @@ if policy_components_to_copy['blocklists']:
                 print('\nAdding', len(blocklists_in_source_only), 'blocklists to the destination policy group', f"'{destination_group['name']}'")
                 for blocklist in blocklists_in_source_only:
                     url = base_url + 'group/blocklist/approve?groupid=' + destination_group['groupid'] + '&blocklistid=' + blocklist['blocklistid'] + '&audit=' + str(blocklist['audit'])
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)
@@ -386,7 +385,7 @@ if policy_components_to_copy['paths']:
                     path = path.replace('\\\\', '\\')
                     encoded_path = urllib.parse.quote(path)
                     url = base_url + 'group/path/add?groupid=' + destination_group['groupid'] + "&path=" + encoded_path
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)
@@ -440,7 +439,7 @@ if policy_components_to_copy['publishers']:
                 for publisher in publishers_in_source_only:
                     encoded_publisher = urllib.parse.quote(publisher)
                     url = base_url + 'group/publisher/add?groupid=' + destination_group['groupid'] + "&publisher=" + encoded_publisher
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)
@@ -491,7 +490,7 @@ if policy_components_to_copy['pprocesses']:
                     process = process.replace('\\\\', '\\')
                     encoded_process = urllib.parse.quote(process)
                     url = base_url + 'group/process/add?type=pprocess&groupid=' + destination_group['groupid'] + "&process=" + encoded_process
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)
@@ -541,7 +540,7 @@ if policy_components_to_copy['gprocesses']:
                     process = process.replace('\\\\', '\\')
                     encoded_process = urllib.parse.quote(process)
                     url = base_url + 'group/process/add?type=gprocess&groupid=' + destination_group['groupid'] + "&process=" + encoded_process
-                    response = requests.post(url, headers=headers, verify=False)
+                    response = requests.post(url, headers=headers)
                     print(url, response)
             else:
                 print('Aborting change based on our response:', user_response)

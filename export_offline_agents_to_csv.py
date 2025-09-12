@@ -19,7 +19,7 @@ with open(config_file_name, 'r') as file:
 url = 'https://' + config['server_name'] + ':3129/v1/agent/find'
 headers = {'X-APIKey': config['api_key']}
 payload = {'status': 0}  # 0=offline 1=online 3=safemode
-response = requests.post(url, json=payload, headers=headers, verify=False)
+response = requests.post(url, json=payload, headers=headers)
 offline_agent_list = response.json()['response']['agents']
 
 # Calculate number of days offline for each agent in the list

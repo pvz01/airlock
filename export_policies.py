@@ -3,8 +3,7 @@
 # Last updated: 2024-09-13
 # Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
 
-import requests, json, urllib3, datetime, yaml, re
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import requests, json, datetime, yaml, re
 
 def read_config(config_file_name):
     with open(config_file_name, 'r') as file:
@@ -19,7 +18,7 @@ def get_groups(config):
     print('Getting groups')
     request_url = 'https://' + config['server_name'] + ':3129/v1/group'
     request_headers = {'X-ApiKey': config['api_key']}
-    response = requests.post(request_url, headers=request_headers, verify=False)
+    response = requests.post(request_url, headers=request_headers)
     print(request_url, response)
     groups = response.json()['response']['groups']
     print('Found', len(groups), 'groups')
@@ -30,7 +29,7 @@ def get_policy_for_group(group, config):
     request_url = 'https://' + config['server_name'] + ':3129/v1/group/policies'
     request_headers = {'X-ApiKey': config['api_key']}
     request_body = {'groupid': group['groupid']}
-    response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+    response = requests.post(request_url, headers=request_headers, json=request_body)
     print(request_url, request_body, response)
     policy = response.json()['response']
     return policy

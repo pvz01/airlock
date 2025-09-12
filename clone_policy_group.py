@@ -8,13 +8,9 @@ headers = {'X-APIKey': 'API-KEY'}
 import requests
 import json
 
-#suppress ssl warnings if not using certificate verification
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 #read group list
 request_url = f'{base_url}/v1/group'
-response = requests.post(request_url, headers=headers, verify=False)
+response = requests.post(request_url, headers=headers)
 groups = response.json()['response']['groups']
 
 #prompt for group selection
@@ -33,11 +29,11 @@ request_url = f'{base_url}/v1/group/new'
 payload = {'name': new_group_name,
            'parent': new_group_parent,
            'hidden': '0'}
-response = requests.post(request_url, headers=headers, json=payload, verify=False)
+response = requests.post(request_url, headers=headers, json=payload)
 
 #read updated group list to validate creation of new group and get it's groupid
 request_url = f'{base_url}/v1/group'
-response = requests.post(request_url, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, headers=headers)
 groups_with_new_group = response.json()['response']['groups']
 for group in groups_with_new_group:
     if group['name'] == new_group_name:
@@ -50,7 +46,7 @@ request_url = f'{base_url}/v1/group/assign'
 print('\nApplying the policies applied to', source_group['name'], 'to', target_group['name'])
 payload = {'groupid': source_group['groupid'],
            'targetgroupid': target_group['groupid']}
-response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+response = requests.post(request_url, headers=headers, json=payload)
 
 #TODO: Consider additional additional code to copy over additional configuration
 #      such as group settings

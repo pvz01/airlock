@@ -26,7 +26,7 @@ safety_check = True
 
 #get list of applications
 request_url = base_url + '/v1/application'
-response = requests.post(request_url, headers=headers, verify=False)
+response = requests.post(request_url, headers=headers)
 applications = response.json()['response']['applications']
 print('INFO: Found', len(applications), 'applications')
 
@@ -37,7 +37,7 @@ for application in applications:
 	#get the application
 	request_url = base_url + '/v1/application/export'
 	payload = {'applicationid': application['applicationid']}
-	response = requests.post(request_url, headers=headers, json=payload, verify=False)
+	response = requests.post(request_url, headers=headers, json=payload)
 	xml_content = response.text
 	
 	print('INFO: Downloaded application from server. Beginning analysis.')
@@ -97,4 +97,4 @@ for application in applications:
 		request_url = base_url + '/v1/hash/application/remove'
 		payload = {'applicationid': application['applicationid'],
 				   'hashes': sha256_list}
-		response = requests.post(request_url, headers=headers, json=payload, verify=False)
+		response = requests.post(request_url, headers=headers, json=payload)

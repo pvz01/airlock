@@ -23,10 +23,6 @@ import csv
 import datetime
 import yaml
 
-# Suppress SSL warnings
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 # Read server config
 with open(config_file_name, 'r') as file:
     config = yaml.safe_load(file)
@@ -38,7 +34,7 @@ collected_data = []
 while True:
 	request_body = {'checkpoint': checkpoint}
 	print('Querying server for entries after checkpoint', checkpoint)
-	response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+	response = requests.post(request_url, headers=request_headers, json=request_body)
 	svractivities = response.json()['response']['svractivities']
 	checkpoint = svractivities[len(svractivities)-1]['checkpoint']
 	print('Found', len(svractivities), 'rows of data, the last of which has checkpoint', checkpoint) 

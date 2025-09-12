@@ -19,13 +19,9 @@ if headers['X-APIKey'] == 'api-key-here':
     api_key = input('API Key: ')
     headers['X-APIKey'] = api_key
 
-#suppress SSL warnings
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 #get list of appplications
 request_url = base_url + '/v1/application'
-response = requests.post(request_url, headers=headers, verify=False)
+response = requests.post(request_url, headers=headers)
 print(response.status_code, request_url)
 applications = response.json()['response']['applications']
 print('Found', len(applications), 'applications')
@@ -36,7 +32,7 @@ for application in applications:
     #get the application from the server
     request_url = base_url + '/v1/application/export'
     payload = {'applicationid': application['applicationid']}
-    response = requests.post(request_url, headers=headers, json=payload, verify=False)
+    response = requests.post(request_url, headers=headers, json=payload)
     print(response.status_code, request_url)
     xml_content = response.text
     

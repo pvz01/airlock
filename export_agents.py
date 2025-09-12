@@ -8,23 +8,14 @@ import json, sys, requests, datetime, pandas, xlsxwriter, openpyxl, dateutil
 #prompt for config
 server_fqdn = input('Server: ')
 api_key = input('API key: ')
-verify_ssl = input('Verify SSL [yes | no]: ')
 
 #calculate base configuration used for requests to server
 base_url = 'https://' + server_fqdn + ':' + str(3129) + '/'
 headers = {'X-APIKey': api_key}
 
-#process SSL configuration
-if verify_ssl.lower() == 'yes':
-	verify_ssl = True
-else:
-	verify_ssl = False
-	import urllib3
-	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 #get list of groups
 request_url = f'{base_url}v1/group'
-response = requests.post(request_url, headers=headers, verify=verify_ssl)
+response = requests.post(request_url, headers=headers)
 if response.status_code != 200:
 	print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers)
 	sys.exit(0)
@@ -47,7 +38,7 @@ print('------------------------------------')
 for group in groups:
 	request_url = f'{base_url}v1/group/policies'
 	payload = {'groupid': group['groupid']}
-	response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+	response = requests.post(request_url, headers=headers, json=payload)
 	auditmode = (1 == int(response.json()['response']['auditmode']))
 	if auditmode:
 		group['policymode'] = 'audit'
@@ -72,7 +63,7 @@ else:
 #get agent list from server
 print('INFO: Querying server for agents with search parameters', payload)
 request_url = f'{base_url}v1/agent/find'
-response = requests.post(request_url, headers=headers, verify=verify_ssl, json=payload)
+response = requests.post(request_url, headers=headers, json=payload)
 agents = response.json()['response']['agents']
 if agents == None:
 	print('ERROR: No records returned')

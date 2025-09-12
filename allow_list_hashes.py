@@ -30,12 +30,6 @@ import hashlib, os
 for _ in range(10):
     hash_list.append(hashlib.sha256(os.urandom(16)).hexdigest())
 
-#set ssl mode
-verify_ssl = False  #change to True for production
-if verify_ssl == False:
-    import urllib3
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
     
 ##RUNTIME
 
@@ -61,7 +55,7 @@ for hash in hash_list:
          'path': f'z:\\{hash}.imported' #make a fake/placeholder path and filename
         }
     ]} 
-    response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+    response = requests.post(request_url, headers=headers, json=payload)
     if response.status_code != 200:
         print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers, 'and payload', payload, 'and verify ssl', verify_ssl)
         sys.exit(0)
@@ -72,7 +66,7 @@ for hash in hash_list:
     request_url = f'{base_url}v1/hash/application/add'
     payload = {'applicationid': applicationid,
                'hashes': [hash] }    
-    response = requests.post(request_url, headers=headers, json=payload, verify=verify_ssl)
+    response = requests.post(request_url, headers=headers, json=payload)
     if response.status_code != 200:
         print('ERROR: Unexpected return code', response.status_code, 'on HTTP POST', request_url, 'with headers', headers, 'and payload', payload, 'and verify ssl', verify_ssl)
         sys.exit(0)

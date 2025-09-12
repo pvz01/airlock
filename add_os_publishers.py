@@ -26,9 +26,6 @@ api_key: yourapikey
 # Import required libraries
 import requests, json, urllib3, yaml, os, sys
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 # Method that reads configuration from a YAML file on disk
 def read_config(config_file_name='airlock.yaml'):
     if not os.path.exists(config_file_name):
@@ -43,7 +40,7 @@ def read_config(config_file_name='airlock.yaml'):
 def get_groups(server_name, api_key):
     request_url = 'https://' + server_name + ':3129/v1/group'
     request_headers = {'X-APIKey': api_key}
-    response = requests.post(request_url, headers=request_headers, verify=False)
+    response = requests.post(request_url, headers=request_headers)
     #print(request_url, response)
     groups = response.json()['response']['groups']
     print(len(groups), 'policy groups downloaded from server')
@@ -64,7 +61,7 @@ def get_trusted_publishers(group, server_name, api_key):
     publisher_names = []
     request_url = 'https://' + server_name + ':3129/v1/group/policies?groupid=' + group['groupid']
     request_headers = {'X-APIKey': api_key}
-    response = requests.post(request_url, headers=request_headers, verify=False)
+    response = requests.post(request_url, headers=request_headers)
     #print(request_url, response)
     publishers = response.json()['response']['publishers']
     if publishers is not None:
@@ -80,7 +77,7 @@ def add_publishers(publisher_list, group, server_name, api_key):
     request_headers = {'X-APIKey': api_key}
     request_body = {'groupid': group['groupid'],
                     'publisher': publisher_list}
-    response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
+    response = requests.post(request_url, headers=request_headers, json=request_body)
     #print(request_url, request_body, response)
 
 # Get Airlock Server config
