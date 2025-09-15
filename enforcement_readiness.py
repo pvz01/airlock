@@ -1,337 +1,438 @@
-# enforcement_readiness.py
-# Patrick Van Zandt <patrick@airlockdigital.com>, Principal Customer Success Manager
+# Enforcement Readiness Assessment
+# Patrick Van Zandt, Principal Customer Success Manager
 #
-# Example of how to generate MS Excel format report on recent untrusted executions
-# which can be used to determine readiness to promote agents to enforcement mode
-# on a per-hostname basis (for example by using [move_agents.py](./move_agents.py)).
+# This script downloads three key pieces of data for the Policy Group that you select
+# 1. All simulated block events (events with type Untrusted Execution [Audit]) for the last 30 days
+# 2. All server activity history events for the last 30 days
+# 3. The list of agents including their hostname and last checkin time
 #
-# Known limitations:
-# 1. If you have duplicate hostnames in your environment, the sum of events for all 
-#    agents with the same hostname will be returned for all agents with that hostname.
-# 2. If you have duplicate hostnames in your environment, all agents with the same
-#    hostname will report the same value for installed_days_ago which will reflect
-#    the most recent registration for any device with that hostname.
+# It then summarizes and combines the data, providing an easy-to-read spreadsheet format output which has
+# key metrics to enable you to assess risk on a per-device (hostname) basis of moving devices from Audit
+# Mode to Enforcement Mode.
+# 
+# As an example, if you were to apply these filters to the output file in Excel, Sheets, or equivalent
+#    Days since agent was installed:  > 30
+#    Days since last check-in:  < 7
+#    Simulated blocks (last 30 days):  0
+# then you will have a list of hostnames that were installed 30+ days ago, have checked in within the last
+# week, and have generated 0 Untrusted Execution [Audit] events in the last 30 days. Based on the data, 
+# these devices are very low risk to move to Enforcement Mode.
+#
+# This script is published under the GNU General Public License v3.0 and is intended as a working example 
+# of how to interact with the Airlock API. It is not a commercial product and is provided 'as-is' with no 
+# support. No warranty, express or implied, is provided, and the use of this script is at your own risk.
+#
+# This script requires Python 3.x and several common libraries. To install these dependencies, run
+#     pip install requests pyyaml pandas python-dateutil pymongo openpyxl xlsxwriter
+#
+# This script reads configuration from a required configuration file named airlock.yaml. Use any text editor
+# to create this file based on the template below, then save in the same folder as this Python script.
+'''
+server_name: foo.bar.managedwhitelisting.com
+api_key: yourapikey
+'''
+# The API key must be for a user that is in a Permission Group with the following REST API Roles:
+#     group
+#     group/policies
+#     group/agents
+#     logging/exechistories
+#     logging/svractivities
+#
+# There are also several optional configuration parameters which you can include in your airlock.yaml to
+# modify the default behavior of this script. Template below showing how to include these.
+'''
+server_name: foo.bar.managedwhitelisting.com    # Required
+api_key: yourapikey                             # Required
+enforcement_readiness:                          # Required only if including one or more of the below
+    lookback_days: 45                           # Optional - overrides the default (30 days)
+    policy_group_name:                          # Optional - skips selection prompt if match is found
+'''
 
-# To install dependencies, run this command:
-#     pip install requests urllib3 pyyaml pandas python-dateutil pymongo openpyxl
-
-# Import required libraries
-import requests, json, urllib3, yaml, pandas, dateutil.parser, os, sys
+## IMPORT REQUIRED LIBRARIES ##
+import requests
+import json
+import yaml
+import pandas
+import dateutil.parser
+import os
+import sys
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+## DEFINE A SERIES OF METHODS USED AT RUNTIME ##
 
 # Method that reads configuration from a YAML file on disk
 def read_config(config_file_name='airlock.yaml'):
+
+    print('Reading configuration from', config_file_name)
     if not os.path.exists(config_file_name):
-        print('ERROR: The configuration file', config_file_name, 'does not exist.')
+        print('ERROR: The configuration file does not exist.',
+              'Create a new text file using this template:\n\n'
+              'server_name: your-airlock-server\napi_key: your-api-key',
+              f"\n\nThen save it in the same folder as this script as '{config_file_name}' and try again."
+              )
         sys.exit(1)
+
     with open(config_file_name, 'r') as file:
         config = yaml.safe_load(file)
-    print('Read config from', config_file_name, 'for server', config['server_name'], 'and event types', config['event_types'])
-    return config
 
-# Method that calculates the earliest MongoDB ObjectId (database checkpoint) for some number of hours ago
-def objectid_n_hours_ago(n):
-    datetime_n_hours_ago = datetime.now(timezone.utc) - timedelta(hours=n)
-    print('Calculating earliest objectid for documents ingested', n, 'hours ago:', datetime_n_hours_ago)
-    timestamp = int(datetime_n_hours_ago.timestamp())
-    objectid = ObjectId(hex(timestamp)[2:] + '0000000000000000')
-    print('Result:', objectid)
+    server_name = config.get('server_name', None)
+    if server_name is None:
+        print('Error reading server_name from', config_file_name)
+        sys.exit(1)
+
+    api_key = config.get('api_key', None)
+    if api_key is None:
+        print('Error reading api_key from', config_file_name)
+        sys.exit(1)
+
+    enforcement_readiness_config = config.get('enforcement_readiness', {})
+    lookback_days = int(enforcement_readiness_config.get('lookback_days', 30)) # default 30 if not provided
+    policy_group_name = enforcement_readiness_config.get('policy_group_name', None)
+
+    print('\tServer name', f"'{server_name}'")
+    print('\tAPI key ending in', f"'{api_key[-4:]}'")
+    print('\tLookback days', f"'{lookback_days}'")
+    if policy_group_name:
+        print('\tPreselected policy group', f"'{policy_group_name}'")
+
+    return server_name, api_key, lookback_days, policy_group_name
+
+# Method that calculates the earliest MongoDB ObjectId (database checkpoint) for some number of days ago
+def objectid_n_days_ago(n):
+    now = datetime.now(timezone.utc)
+    n_days_ago = now - timedelta(days=n)
+    n_days_ago_string = n_days_ago.strftime('%Y-%m-%d %H:%M:%S UTC')
+    objectid = ObjectId(hex(int(n_days_ago.timestamp()))[2:] + '0000000000000000')
+    print(f"\t\t{objectid} is the minimum checkpoint for events ingested by the server at {n_days_ago_string} ({n} days ago)")
     return objectid
 
 # Method that gets the list of Policy Groups from the server
 def get_groups(server_name, api_key):
-	request_url = 'https://' + server_name + ':3129/v1/group'
-	request_headers = {'X-APIKey': api_key}
-	response = requests.post(request_url, headers=request_headers, verify=False)
-	return response.json()['response']['groups']
+    request_url = 'https://' + server_name + ':3129/v1/group'
+    request_headers = {'X-ApiKey': api_key}
+    response = requests.post(request_url, headers=request_headers)
+    return response.json()['response']['groups']
 
 # Method that iterates through a list of Policy Groups, interrogates policy of each, and adds the auditmode field to the list
 def add_audit_mode_to_group_list(groups, server_name, api_key):
-	group_index = 1
-	for group in groups:
-		print('Analyzing policy group', group_index, 'of', len(groups), group['name'], end=' ')
-		request_url = 'https://' + server_name + ':3129/v1/group/policies'
-		request_headers = {'X-APIKey': api_key}
-		request_body = {'groupid': group['groupid']}
-		response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
-		auditmode = int(response.json()['response']['auditmode'])
-		group['auditmode'] = (auditmode == 1)
-		print('[Audit]' if auditmode == 1 else '[Enforcement]')
-		group_index += 1
-	return groups
+    counter = 1
+    for group in groups:
+        print(f"\tAnalyzing Policy Group {counter} of {len(groups)}: '{group['name']}'")
+        request_url = 'https://' + server_name + ':3129/v1/group/policies'
+        request_headers = {'X-ApiKey': api_key}
+        request_body = {'groupid': group['groupid']}
+        response = requests.post(request_url, headers=request_headers, json=request_body)
+        auditmode = int(response.json()['response']['auditmode'])
+        if auditmode == 1:
+            group['auditmode'] = True
+            print('\t\tAudit Mode')
+        else:
+            group['auditmode'] = False
+            print('\t\tEnforcement Mode')
+        counter += 1
+    return groups
 
 # Method that filters a list of policy groups based on the auditmode field
 def filter_group_list(groups, auditmode=True):
-	return [group for group in groups if group['auditmode'] == auditmode]
+    return [group for group in groups if group['auditmode'] == auditmode]
 
-# Method to selects 1 from a list of Policy Groups by prompting the user
+# Method to select from a list of Policy Groups by prompting the user
 def choose_group(groups, prompt_message, server_name):
-	print('These are', len(groups), 'Audit Mode groups on', server_name)
-	for index, item in enumerate(groups):
-		print(index+1, '\t', item['name'])
-	index = int(input(prompt_message)) - 1
-	return groups[index]
+    for index, item in enumerate(groups):
+        print(f"\t\t{index+1}  '{item['name']}'")
+    index = int(input(prompt_message)) - 1
+    return groups[index]
 
-# Method to fetch the list of agents in a Policy Group
+# Method to download the list of agents in a Policy Group
 def get_agents_in_group(group, server_name, api_key):
-	request_url = 'https://' + server_name + ':3129/v1/group/agents'
-	request_headers = {'X-APIKey': api_key}
-	request_body = {'groupid': group['groupid']}
-	response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
-	return response.json()['response']['agents']
+    request_url = 'https://' + server_name + ':3129/v1/group/agents'
+    request_headers = {'X-ApiKey': api_key}
+    request_body = {'groupid': group['groupid']}
+    response = requests.post(request_url, headers=request_headers, json=request_body)
+    return response.json()['response']['agents']
 
 # Method to add untrusted execution counts to a list of agents
 def add_execution_counts(agents, last_30_days_counts, last_15_days_counts, last_7_days_counts):
-	for agent in agents:
-		agent['untrusted_30d'] = last_30_days_counts.get(agent['hostname'], 0)
-		agent['untrusted_15d'] = last_15_days_counts.get(agent['hostname'], 0)
-		agent['untrusted_7d'] = last_7_days_counts.get(agent['hostname'], 0)
-	return agents
+    for agent in agents:
+        agent['untrusted_30d'] = last_30_days_counts.get(agent['hostname'], 0)
+        agent['untrusted_15d'] = last_15_days_counts.get(agent['hostname'], 0)
+        agent['untrusted_7d'] = last_7_days_counts.get(agent['hostname'], 0)
+    return agents
 
 # Method to add the number of days since last check-in to a list of agents by comparing lastcheckin to current datetime
 def add_checkin_age(agents):
-	now = datetime.now(timezone.utc)
-	for agent in agents:
-		lastcheckin = dateutil.parser.parse(agent['lastcheckin'])
-		agent['checkin_age'] = (now - lastcheckin).days
-	return agents
+    now = datetime.now(timezone.utc)
+    for agent in agents:
+        lastcheckin = dateutil.parser.parse(agent['lastcheckin'])
+        agent['checkin_age'] = (now - lastcheckin).days
+    return agents
 
-# Method to get the executionhistory events for a policy group
-def get_exechistories_for_group(group, server_name, api_key, types=[2], checkpoint='000000000000000000000000'):
-	request_url = 'https://' + server_name + ':3129/v1/logging/exechistories'
-	request_headers = {'X-APIKey': api_key}
-	request_body = {'type': types,  # the default [2] denotes "Untrusted Execution [Audit]"
-					'checkpoint': checkpoint,
-					'policy': [group['name']]}
-	all_events = []
-	while True:
-		response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
-		events = response.json()['response']['exechistories']
-		if events is None:
-			events = []
-		print(request_url, request_body, 'returned', "{:,}".format(len(events)), 'records')
-		all_events += events
+# Method to download paginated events (exechistories or svractivities) from Airlock Server
+def get_events(event_type, lookback_days, server_name, api_key, checkpoint, group_name=None, max_quantity=10000000):
 
-		if len(events) == 10000:
-			request_body['checkpoint'] = events[-1]['checkpoint']
-		else:
-			break
+    # Helper method used to build visual progress bar for console output
+    def make_bar(pct, width=20):
+        filled = int(round((pct / 100.0) * width))
+        return '[' + '#' * filled + '.' * (width - filled) + ']'
 
-	return all_events
+    # Define parameters for making requests to server
+    request_url = f'https://{server_name}:3129/v1/logging/{event_type}'
+    request_headers = {'X-ApiKey': api_key}
+    request_body = {'checkpoint': checkpoint}
+    if event_type == 'exechistories':
+        request_body['policy'] = [group_name]
+        request_body['type'] = [2]  # Untrusted Execution [Audit]
+    
+    # Define a list to store events as they are downloaded
+    events = []
 
-# Method to counts the number of events by hostname within different timeframes
+    # Define a counter to keep track of how many batches (pages) of events have been downloaded
+    batch_counter = 0
+
+    # Repeat this block of code until a break condition is identified
+    while True:
+    
+        # If maximum event quantity has been reached, exit the while loop
+        if len(events) >= max_quantity:
+            print('\t\tStopping event download because maximum quantity', max_quantity, 'has been reached')
+            sys.exit(1)
+        
+        # Get a batch of events from server and increment batch counter
+        response = requests.post(request_url, headers=request_headers, json=request_body)
+        events_this_batch = response.json()['response'][event_type]
+        batch_counter += 1
+
+        # If no events were returned, exit the while loop
+        if not events_this_batch:
+            print('\t\tNo events received on most recent request, indicating that the download is complete')
+            break
+        
+        # Add this batch of events to the collected events
+        events += events_this_batch
+
+        # Extract checkpoint and ingestion timestamp from last event in this batch
+        last_event = events_this_batch[-1]
+        last_checkpoint = last_event['checkpoint']  # hex string
+        last_ingest_dt_utc = ObjectId(last_checkpoint).generation_time  #ObjectId gen time is UTC
+        last_ingest_str_utc = last_ingest_dt_utc.strftime('%Y-%m-%d %H:%M UTC')
+
+        # Compute percent complete from the "oldest known = lookback_days ago" anchor
+        now_utc = datetime.now(timezone.utc)
+        age_days = max(0.0, (now_utc - last_ingest_dt_utc).total_seconds() / 86400.0)
+        pct_complete = (lookback_days - age_days) / lookback_days * 100.0
+        bar = make_bar(pct_complete)
+
+        # Print progress to console
+        if batch_counter == 1:  #print headers 1 time only (on first batch)
+            print(f"\t\t{'Request':<11}{'Checkpoint greater than':<28}{'Events returned':<17}{'Latest ingestion timestamp':<28}{'Progress (estimated)':<24}{'Total events':<12}")
+        print(f"\t\t{batch_counter:<11}{request_body['checkpoint']:<28}{len(events_this_batch):<17,}{last_ingest_str_utc:<28}{bar:<24}{len(events):<12,}")
+
+        # If less than 10,000 events were returned, exit the while loop
+        if len(events_this_batch) < 10000:
+            print('\t\tLess than 10K events received on most recent request, indicating that the download is complete')
+            break
+        
+        else:
+            request_body['checkpoint'] = last_checkpoint  #increment checkpoint before continuing download
+
+    # Print summary of the event download process
+    print('\t\t{:,}'.format(len(events)), 'total', event_type, 'events were downloaded')
+    
+    return events
+
+# Method to count the number of events by hostname within different timeframes
 def count_events_by_hostname_with_timeframes(events):
-	last_30_days_counts = {}
-	last_15_days_counts = {}
-	last_7_days_counts = {}
+    last_30_days_counts = {}
+    last_15_days_counts = {}
+    last_7_days_counts = {}
 
-	current_time = datetime.now(timezone.utc)
-	last_30_days_threshold = current_time - timedelta(days=30)
-	last_15_days_threshold = current_time - timedelta(days=15)
-	last_7_days_threshold = current_time - timedelta(days=7)
+    current_time = datetime.now(timezone.utc)
+    last_30_days_threshold = current_time - timedelta(days=30)
+    last_15_days_threshold = current_time - timedelta(days=15)
+    last_7_days_threshold = current_time - timedelta(days=7)
 
-	for event in events:
-		hostname = event.get('hostname')
-		event_time = datetime.strptime(event.get('datetime'), '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+    for event in events:
+        hostname = event.get('hostname')
+        event_time = datetime.strptime(event.get('datetime'), '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
-		if event_time >= last_30_days_threshold:
-			last_30_days_counts[hostname] = last_30_days_counts.get(hostname, 0) + 1
+        if event_time >= last_30_days_threshold:
+            last_30_days_counts[hostname] = last_30_days_counts.get(hostname, 0) + 1
 
-		if event_time >= last_15_days_threshold:
-			last_15_days_counts[hostname] = last_15_days_counts.get(hostname, 0) + 1
+        if event_time >= last_15_days_threshold:
+            last_15_days_counts[hostname] = last_15_days_counts.get(hostname, 0) + 1
 
-		if event_time >= last_7_days_threshold:
-			last_7_days_counts[hostname] = last_7_days_counts.get(hostname, 0) + 1
+        if event_time >= last_7_days_threshold:
+            last_7_days_counts[hostname] = last_7_days_counts.get(hostname, 0) + 1
 
-	return last_30_days_counts, last_15_days_counts, last_7_days_counts
-
-# Method to fetch Server Activity History (SAH) logs
-def get_server_activity_history(server_name, api_key, checkpoint='000000000000000000000000'):
-	request_url = 'https://' + server_name + ':3129/v1/logging/svractivities'
-	request_headers = {'X-APIKey': api_key}
-	request_body = {'checkpoint': checkpoint}
-	all_svractivities = []
-	while True:
-		response = requests.post(request_url, headers=request_headers, json=request_body, verify=False)
-		svractivities = response.json()['response']['svractivities']
-		if svractivities is None:
-			svractivities = []
-		print(request_url, request_body, 'returned', "{:,}".format(len(svractivities)), 'records')
-		all_svractivities += svractivities
-
-		if len(svractivities) == 10000:
-			request_body['checkpoint'] = svractivities[-1]['checkpoint']
-		else:
-			break
-	return all_svractivities
+    return last_30_days_counts, last_15_days_counts, last_7_days_counts
 
 # Method to process the SAH logs extract the most recent registration timestamp per hostname
 def get_last_registrations_per_hostname(server_activity_logs):
-	results = {}
-	for entry in server_activity_logs:
-		if entry['task'] == 'Client Operation' and entry['user'] == 'SYSTEM':
-			if entry['description'].startswith('New agent'):
-				hostname = entry['description'].split()[2].lower()  # hostname is 3rd word in the description field
-				timestamp = dateutil.parser.parse(entry['datetime'])
-				if hostname not in results or timestamp > results[hostname]:
-					results[hostname] = timestamp
-	return results
+    results = {}
+    for entry in server_activity_logs:
+        if entry['task'] == 'Client Operation' and entry['user'] == 'SYSTEM':
+            if entry['description'].startswith('New agent'):
+                hostname = entry['description'].split()[2].lower()  # hostname is 3rd word in the description field
+                timestamp = dateutil.parser.parse(entry['datetime'])
+                if hostname not in results or timestamp > results[hostname]:
+                    results[hostname] = timestamp
+    return results
 
 # Method to add the number of days since installation to each agent
 def add_install_age(agents, registration_timestamps, max_days):
-	now = datetime.now(timezone.utc)
-	for agent in agents:
-		registration_timestamp = registration_timestamps.get(agent['hostname'].lower())
-		if registration_timestamp is None: 
-			agent['install_age'] = f'{str(max_days)}+'
-		else:
-			agent['install_age'] = (now - registration_timestamp).days
-	return agents
+    now = datetime.now(timezone.utc)
+    for agent in agents:
+        registration_timestamp = registration_timestamps.get(agent['hostname'].lower())
+        if registration_timestamp is None: 
+            agent['install_age'] = f'> {max_days}'
+        else:
+            agent['install_age'] = (now - registration_timestamp).days
+    return agents
 
 # Method to collect agents, execution history events, and server activity logs
 def collect_data(server_name, api_key, group, days):
-	start_time = datetime.now(timezone.utc)
-	print('Beginning data collection')
+    start_time = datetime.now(timezone.utc)
+    print('\nBeginning data download')
 
-	agents = get_agents_in_group(group, server_name, api_key)
-	print('Downloaded', "{:,}".format(len(agents)), 'agents')
+    print('\tDownloading agents in policy group', f"'{group['name']}'")
+    agents = get_agents_in_group(group, server_name, api_key)
+    if not agents:
+        print('\t\tNo Enforcement Agents are in the group you selected')
+        sys.exit(1)
+    print("\t\t{:,}".format(len(agents)), 'agents downloaded')
 
-	print('Calculating database checkpoint from', days, 'days ago to use for downloading events and server activity logs with a datetime')
-	checkpoint = str(objectid_n_hours_ago(days * 24))
+    print('\n\tCalculating database checkpoint to start event downloads from')
+    checkpoint = str(objectid_n_days_ago(days))
 
-	print('Downloading Execution History (exechistory) events')
-	events = get_exechistories_for_group(group, server_name, api_key, checkpoint=checkpoint)
-	print('Downloaded', "{:,}".format(len(events)), 'exechistory events')
+    print('\n\tDownloading Execution History events (depending upon event volume, this may take a while)')
+    events = get_events('exechistories', days, server_name, api_key, checkpoint, group['name'])
 
-	print('Downloading Server Activity History (sah) events')
-	sah_logs = get_server_activity_history(server_name, api_key, checkpoint=checkpoint)
-	print('Downloaded', "{:,}".format(len(sah_logs)), 'sah events')
+    print('\n\tDownloading Server Activity History events (depending upon event volume, this may take a while)')
+    sah_logs = get_events('svractivities', days, server_name, api_key, checkpoint)
 
-	print('Data collection is complete')
+    print('\n\tData download is complete')
 
-	return agents, events, sah_logs, start_time
+    return agents, events, sah_logs, start_time
 
-# Method to print readme message to console
-def print_readme_message(silent=False):
-	readme_message = """
-Welcome to the PVZ's Airlock Enforcement Readiness Assessment tool. This tool is an example of how to
-generate an Excel-readable spreadsheet with key data points to assist with assessing which computers
-in your environment are relatively low versus relatively high risk to promote from Audit Mode to 
-Enforcement Mode. To accomplish this, it exports all events in the last 30 days from your chosen Audit 
-Mode policy, summarizes them by hostname, and then exports this along with a list of hostnames in that 
-policy. It also adds columns which indicate how many days ago each agent last connected to the server
-and how long ago the most recent registation (new install) for that hostname occured.
 
-This script makes no changes to your environment and makes no specific recommendation on what to move
-to enforcement. Instead, it equips you to do "what if" scenarios in Excel, for example if you were to
-filter the results on 
+## MAIN METHOD THAT GETS EXECUTED WHEN THIS SCRIPT IS RUN ##
 
-  untrusted_15d < 5
-  -and-
-  install_age > 21
-  -and-
-  checkin_age < 3
-
-you would be left with a list of devices which have been installed 3+ weeks, had minimal events in
-the last 2+ weeks, and have checked in (and therefore uploaded any new events) within the last 2 days.
-Many customers consider that devices matching this criteria are quite low risk to move to Enforcement 
-Mode and use same or similar criteria to promote devices.
-
-This script reads server configuration from a configuration file named airlock.yaml. Use any text editor
-to create this file based on the template below, then save in the same folder as this Python script.
-
-server_name: foo.bar.managedwhitelisting.com
-api_key: yourapikey
-
-The API key provided in airlock.yaml must have permission to the following API endpoints:
-	group
-	group/policies
-	group/agents
-	logging/exechistories
-	logging/svractivities
-
-This script is published under the GNU General Public License v3.0 and is intended as a working example 
-of how to interact with the Airlock API. It is not a commercial product and is provided 'as-is' with no 
-support. No warranty, express or implied, is provided, and the use of this script is at your own risk.
-
-	"""
-	if not silent:
-		print(readme_message)
-
-# Main function to run the enforcement readiness assessment
+# Main method to perform Enforcement Readiness assessment
 def main():
+    
+    server_name, api_key, lookback_days, policy_group_name = read_config()
+    
+    print('\nDownloading list of groups from server')
+    groups = get_groups(server_name, api_key)
+    print(f"\t{len(groups)} groups downloaded")
 
-	print_readme_message()
-	
-	config = read_config()
-	server_name = config['server_name']
-	api_key = config['api_key']
-	days = 30
+    print('\nReading policy for each group to determine Audit vs Enforcement Mode')
+    groups = add_audit_mode_to_group_list(groups, server_name, api_key)
 
-	print('Getting list of groups from server')
-	groups = get_groups(server_name, api_key)
+    print('\nFiltering group list to remove Enforcement Mode groups')
+    groups = filter_group_list(groups, True)
+    print(f"\t{len(groups)} groups remain")
 
-	print('Reading policy for each group to determine Audit vs Enforcement Mode')
-	groups = add_audit_mode_to_group_list(groups, server_name, api_key)
+    group = None
+    if policy_group_name is not None:
+        print('\nIterating through filtered group list to look for a match for preconfigured group name', policy_group_name)
+        for possible_group in groups:
+            if possible_group['name'] == policy_group_name:
+                group = possible_group
+                print('Found a match:', group)
+                break
+        if group is None:
+            print('No match found for an Audit Mode group with the preconfigured group name:', policy_group_name)
 
-	print('Filtering group list to remove Enforcement Mode groups')
-	groups = filter_group_list(groups, True)
+    if group is None:
+        group = choose_group(groups, '\nWhich Policy Group do you want to run Enforcement Readiness analysis on? Enter number and press return: ', server_name)
 
-	group = choose_group(groups, 'Which group do you want to perform analysis on? Enter number and press return: ', server_name)
+    agents, events, sah_logs, start_time = collect_data(server_name, api_key, group, lookback_days)
 
-	agents, events, sah_logs, start_time = collect_data(server_name, api_key, group, days)
+    print('\nAnalyzing data')
+    
+    print('\tSummarizing Execution History events to get counts by hostname and time intervals')
+    last_30_days_counts, last_15_days_counts, last_7_days_counts = count_events_by_hostname_with_timeframes(events)
 
-	print('Summarizing events by hostname and time intervals')
-	last_30_days_counts, last_15_days_counts, last_7_days_counts = count_events_by_hostname_with_timeframes(events)
+    print('\tSummarizing Server Activity History events to get most recent registration for each unique hostname')
+    registration_timestamps = get_last_registrations_per_hostname(sah_logs)
 
-	print('Analyzing server activity logs to find most recent registration per hostname')
-	registration_timestamps = get_last_registrations_per_hostname(sah_logs)
+    print('\tAppending Execution History event counts list of agents')
+    agents = add_execution_counts(agents, last_30_days_counts, last_15_days_counts, last_7_days_counts)
 
-	print('Adding untrusted execution counts to agents list')
-	agents = add_execution_counts(agents, last_30_days_counts, last_15_days_counts, last_7_days_counts)
+    print('\tCalculating Checkin Age for each hostname and adding to list of agents')
+    agents = add_checkin_age(agents)
 
-	print('Adding checkin_age to agents list')
-	agents = add_checkin_age(agents)
+    print('\tCalculating Installation Age for each hostname and appending to list of agents')
+    agents = add_install_age(agents, registration_timestamps, max_days=lookback_days)
 
-	print('Adding install_age to agents list')
-	agents = add_install_age(agents, registration_timestamps, max_days=days)
+    print('\tLoading list of agents into a DataFrame')
+    agents_df = pandas.DataFrame(agents)
 
-	print('Loading results into a pandas dataframe')
-	agents_df = pandas.DataFrame(agents)
+    columns_to_remove = ['freespace', 'groupid', 'domain', 'ip', 'status', 'username', 'clientversion', 'policyversion']
+    print('\tRemoving unused columns', columns_to_remove)
+    agents_df.drop(columns_to_remove, axis=1, inplace=True)
 
-	columns_to_remove = ['freespace', 'groupid', 'domain', 'ip', 'status', 'username', 'clientversion', 'policyversion']
-	print('Dropping columns', columns_to_remove)
-	agents_df.drop(columns_to_remove, axis=1, inplace=True)
+    column_order = ['hostname', 'untrusted_7d', 'untrusted_15d', 'untrusted_30d', 'checkin_age', 'install_age']
+    print('\tReordering columns to', column_order)
+    agents_df = agents_df[column_order]
 
-	column_order = ['hostname', 'untrusted_30d', 'untrusted_15d', 'untrusted_7d', 'checkin_age', 'install_age']
-	print('Reordering columns to be', column_order)
-	agents_df = agents_df[column_order]
+    rename_map = {'hostname': 'Device hostname',
+                  'untrusted_30d': 'Simulated blocks (last 30 days)',
+                  'untrusted_15d': 'Simulated blocks (last 15 days)',
+                  'untrusted_7d':  'Simulated blocks (last 7 days)',
+                  'checkin_age':   'Days since last check-in',
+                  'install_age':   'Days since agent was installed'}
+    print('\tRenaming columns to human-friendly names')
+    agents_df = agents_df.rename(columns=rename_map)
 
-	print('Analysis and data maniputation complete')
+    print('\nExporting data')
 
-	output_filename = f"{server_name.split('.')[0]}_{group['name'].replace(' ', '-')}_Enforcement_Readiness_{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M_UTC')}.xlsx"
-	print('Exporting data to', output_filename)
-	with pandas.ExcelWriter(output_filename) as writer:
-		agents_df.to_excel(writer, index=False, sheet_name=group['name'], na_rep='')
-		print('Auto-sizing column width on exported file to fit exported data')
-		for column in agents_df:
-			column_width = max(agents_df[column].astype(str).map(len).max(), len(column)) + 1
-			col_idx = agents_df.columns.get_loc(column)
-			writer.sheets[group['name']].set_column(col_idx, col_idx, column_width)
-	
-	print('Calculating runtime and other metrics')
-	end_time = datetime.now(timezone.utc)
-	total_runtime = end_time - start_time
-	total_seconds = total_runtime.total_seconds()
-	hours, remainder = divmod(total_seconds, 3600)
-	minutes, seconds = divmod(remainder, 60)
-	formatted_time = f'{int(hours):02}:{int(minutes):02}:{int(seconds):02}'
-	print(f'Total runtime was {formatted_time} to process {days} days of events (quantity: {"{:,}".format(len(events))}), {days} days of server activity logs (quantity: {"{:,}".format(len(sah_logs))}), and {"{:,}".format(len(agents))} agents.')
-	print('Done!')
-	
+    # Build a safe sheet name for Excel (<=31 chars, no : \ / ? * [ ])
+    raw_sheet_name = group['name']
+    print(f"\tBuilding an Excel-compatible sheet name for group '{raw_sheet_name}'")
+    safe_sheet_name = (raw_sheet_name.translate({ord(c): '_' for c in r':\/?*[]'}))[:31]
+    print(f"\t\tSheet name will be '{safe_sheet_name}'")
+
+    # Calculate export filename
+    print('\tCalculating workbook name (file name)')
+    output_filename = f"{server_name.split('.')[0]}_"
+    output_filename += f"{safe_sheet_name.lower().replace(' ', '-')}_"
+    output_filename += f"airlock_enforcement_readiness_"
+    output_filename += f"{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M_utc')}.xlsx"
+    print(f"\t\tWorkbook name will be '{output_filename}'")
+
+    # Export Data to Excel format
+    print('\tWriting output data to disk')
+    with pandas.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
+        agents_df.to_excel(writer, index=False, sheet_name=safe_sheet_name, na_rep='')
+
+        # Adjust column widths on exported Excel file
+        print('\t\tApplying auto-fit to column widths')
+        worksheet = writer.sheets[safe_sheet_name]
+        for col_name in agents_df.columns:
+            col_idx = agents_df.columns.get_loc(col_name)
+            max_len = max(agents_df[col_name].astype(str).map(len).max(), len(col_name))
+            worksheet.set_column(col_idx, col_idx, max_len + 1)
+    print('\tDone exporting data')
+
+    # Calculate and print metrics on runtime and volume of data processed
+    print('\nCalculating runtime and other metrics')
+    end_time = datetime.now(timezone.utc)
+    total_runtime = end_time - start_time
+    total_seconds = total_runtime.total_seconds()
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    formatted_time = f'{int(hours):02}:{int(minutes):02}:{int(seconds):02}'
+    print(f'\tTotal runtime was {formatted_time} to process')
+    print(f'\t\t{lookback_days} days of events (quantity: {"{:,}".format(len(events))})')
+    print(f'\t\t{lookback_days} days of server activity logs (quantity: {"{:,}".format(len(sah_logs))})')
+    print(f'\t\t{"{:,}".format(len(agents))} agents')
+
+    print('\nDone! Open the Excel file to view and analyze results, and consider using move_devices.py to transition "quiet" agents to Enforcement Mode.')
+
+# When this .py file is run directly, invoke the main method defined above
 if __name__ == '__main__':
-	main()
+    main()
