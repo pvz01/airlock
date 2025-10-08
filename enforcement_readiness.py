@@ -60,6 +60,36 @@ from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
 
+## IMPLEMENT CLI FLAG TO ALLOW DISABLING OF SSL VERIFICATION FOR LAB ENVIRONMENTS ##
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--insecure', action='store_true', help='Disable SSL certificate verification (NOT for production)')
+_args, _unknown = parser.parse_known_args()
+VERIFY_SSL = not _args.insecure
+if not VERIFY_SSL:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    #print('WARNING: SSL verification is DISABLED. Your API key and data may be stolen via man-in-the-middle attack.')
+    sys.stderr.write(
+        "\n\033[91m"
+        "!!! INSECURE MODE ENABLED !!!\n"
+        "SSL certificate verification is DISABLED.\n"
+        "\n"
+        "This means:\n"
+        "  • Your connection is not secure.\n"
+        "  • An attacker on the network could intercept or modify traffic\n"
+        "    and steal your API key and data (man-in-the-middle attack).\n"
+        "\n"
+        "If you used this flag by mistake:\n"
+        "  • STOP using --insecure immediately.\n"
+        "  • REGENERATE your API key in the management console to invalidate the old one.\n"
+        "\n"
+        "Use ONLY in trusted lab/dev environments or when testing with self-signed certificates.\n"
+        "Re-run without --insecure for safe operation.\n"
+        "\033[0m\n"
+    )
+
+
 ## DEFINE A SERIES OF METHODS USED AT RUNTIME ##
 
 # Method that reads configuration from a YAML file on disk
@@ -112,7 +142,7 @@ def objectid_n_days_ago(n):
 def get_groups(server_name, api_key):
     request_url = 'https://' + server_name + ':3129/v1/group'
     request_headers = {'X-ApiKey': api_key}
-    response = requests.post(request_url, headers=request_headers)
+    response = requests.post(request_url, headers=request_headers, verify=VERIFY_SSL)
     return response.json()['response']['groups']
 
 # Method that iterates through a list of Policy Groups, interrogates policy of each, and adds the auditmode field to the list
@@ -123,7 +153,7 @@ def add_audit_mode_to_group_list(groups, server_name, api_key):
         request_url = 'https://' + server_name + ':3129/v1/group/policies'
         request_headers = {'X-ApiKey': api_key}
         request_body = {'groupid': group['groupid']}
-        response = requests.post(request_url, headers=request_headers, json=request_body)
+        response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
         auditmode = int(response.json()['response']['auditmode'])
         if auditmode == 1:
             group['auditmode'] = True
@@ -150,7 +180,7 @@ def get_agents_in_group(group, server_name, api_key):
     request_url = 'https://' + server_name + ':3129/v1/group/agents'
     request_headers = {'X-ApiKey': api_key}
     request_body = {'groupid': group['groupid']}
-    response = requests.post(request_url, headers=request_headers, json=request_body)
+    response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
     return response.json()['response']['agents']
 
 # Method to add untrusted execution counts to a list of agents
@@ -200,7 +230,7 @@ def get_events(event_type, lookback_days, server_name, api_key, checkpoint, grou
             sys.exit(1)
         
         # Get a batch of events from server and increment batch counter
-        response = requests.post(request_url, headers=request_headers, json=request_body)
+        response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
         events_this_batch = response.json()['response'][event_type]
         batch_counter += 1
 

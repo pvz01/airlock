@@ -72,6 +72,36 @@ from bson.objectid import ObjectId
 from openpyxl.utils import get_column_letter
 
 
+## IMPLEMENT CLI FLAG TO ALLOW DISABLING OF SSL VERIFICATION FOR LAB ENVIRONMENTS ##
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--insecure', action='store_true', help='Disable SSL certificate verification (NOT for production)')
+_args, _unknown = parser.parse_known_args()
+VERIFY_SSL = not _args.insecure
+if not VERIFY_SSL:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    #print('WARNING: SSL verification is DISABLED. Your API key and data may be stolen via man-in-the-middle attack.')
+    sys.stderr.write(
+        "\n\033[91m"
+        "!!! INSECURE MODE ENABLED !!!\n"
+        "SSL certificate verification is DISABLED.\n"
+        "\n"
+        "This means:\n"
+        "  • Your connection is not secure.\n"
+        "  • An attacker on the network could intercept or modify traffic\n"
+        "    and steal your API key and data (man-in-the-middle attack).\n"
+        "\n"
+        "If you used this flag by mistake:\n"
+        "  • STOP using --insecure immediately.\n"
+        "  • REGENERATE your API key in the management console to invalidate the old one.\n"
+        "\n"
+        "Use ONLY in trusted lab/dev environments or when testing with self-signed certificates.\n"
+        "Re-run without --insecure for safe operation.\n"
+        "\033[0m\n"
+    )
+    
+
 ## DEFINE A SERIES OF METHODS USED AT RUNTIME ##
 
 # Method that reads configuration from a YAML file on disk
@@ -156,7 +186,7 @@ def get_events(event_types, lookback_hours, server_name, api_key, checkpoint, po
             break
         
         # Get a batch of events from server and increment batch counter
-        response = requests.post(request_url, headers=request_headers, json=request_body)
+        response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
         #print('DEBUG:', request_url, request_headers, request_body, response)
         events_this_batch = response.json()['response']['exechistories']
         batch_counter += 1
