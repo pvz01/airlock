@@ -69,7 +69,6 @@ VERIFY_SSL = not _args.insecure
 if not VERIFY_SSL:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    #print('WARNING: SSL verification is DISABLED. Your API key and data may be stolen via man-in-the-middle attack.')
     sys.stderr.write(
         "\n\033[91m"
         "!!! INSECURE MODE ENABLED !!!\n"
@@ -143,6 +142,7 @@ def get_groups(server_name, api_key):
     request_url = 'https://' + server_name + ':3129/v1/group'
     request_headers = {'X-ApiKey': api_key}
     response = requests.post(request_url, headers=request_headers, verify=VERIFY_SSL)
+    response.raise_for_status()
     return response.json()['response']['groups']
 
 # Method that iterates through a list of Policy Groups, interrogates policy of each, and adds the auditmode field to the list
@@ -154,6 +154,7 @@ def add_audit_mode_to_group_list(groups, server_name, api_key):
         request_headers = {'X-ApiKey': api_key}
         request_body = {'groupid': group['groupid']}
         response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
+        response.raise_for_status()
         auditmode = int(response.json()['response']['auditmode'])
         if auditmode == 1:
             group['auditmode'] = True
@@ -181,6 +182,7 @@ def get_agents_in_group(group, server_name, api_key):
     request_headers = {'X-ApiKey': api_key}
     request_body = {'groupid': group['groupid']}
     response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
+    response.raise_for_status()
     return response.json()['response']['agents']
 
 # Method to add untrusted execution counts to a list of agents
@@ -231,6 +233,7 @@ def get_events(event_type, lookback_days, server_name, api_key, checkpoint, grou
         
         # Get a batch of events from server and increment batch counter
         response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
+        response.raise_for_status()
         events_this_batch = response.json()['response'][event_type]
         batch_counter += 1
 

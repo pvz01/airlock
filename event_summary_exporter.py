@@ -81,7 +81,6 @@ VERIFY_SSL = not _args.insecure
 if not VERIFY_SSL:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    #print('WARNING: SSL verification is DISABLED. Your API key and data may be stolen via man-in-the-middle attack.')
     sys.stderr.write(
         "\n\033[91m"
         "!!! INSECURE MODE ENABLED !!!\n"
@@ -187,7 +186,7 @@ def get_events(event_types, lookback_hours, server_name, api_key, checkpoint, po
         
         # Get a batch of events from server and increment batch counter
         response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
-        #print('DEBUG:', request_url, request_headers, request_body, response)
+        response.raise_for_status()
         events_this_batch = response.json()['response']['exechistories']
         batch_counter += 1
 
