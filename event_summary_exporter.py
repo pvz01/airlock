@@ -258,33 +258,45 @@ def main():
     print('\tLoading list of events into a DataFrame')
     events_df = pandas.DataFrame(events)
 
-    print("\tLowercasing Windows paths to assist with aggregation")
     path_columns = ['filename', 'pprocess']
+    
+    print("\tLowercasing Windows paths to assist with aggregation")
     win_mask = events_df[path_columns].apply(lambda s: s.str.contains(r'[A-Za-z]:\\|\\\\', na=False)).any(axis=1)
-    events_df.loc[win_mask, path_columns] = events_df.loc[win_mask, path_columns].apply(lambda s: s.str.lower())
-
+    events_df.loc[win_mask, path_columns] = (events_df.loc[win_mask, path_columns].apply(lambda s: s.str.lower()))
+    
     print('\tGeneralizing usernames to assist with aggregation')
+    _win_user_re = re.compile(r'C:\\users\\[^\\]+', re.IGNORECASE)
+    _posix_user_re = re.compile(r'/Users/[^/]+', re.IGNORECASE)
     for col in path_columns:
-        events_df[col] = events_df[col].str.replace(r'C:\\users\\[^\\]+', r'C:\\users\\*', regex=True, flags=re.IGNORECASE)
-        events_df[col] = events_df[col].str.replace(r'/Users/[^/]+', '/Users/*', regex=True, flags=re.IGNORECASE)
+        s = events_df[col]
+        s = s.str.replace(_win_user_re, r'C:\\users\\*', regex=True)  # Replace C:\Users\<name> with C:\Users\*
+        s = s.str.replace(_posix_user_re, '/Users/*', regex=True)     # Replace /Users/<name> with /Users/*
+        events_df[col] = s
 
     print('\tRenaming columns for easier readability in output file')
-    column_rename_mapping = {
-                            'filename': 'filename_full',
-                            'pprocess': 'parent_process_full',
-                            'sha256': 'file_hash'
-                        }
-    events_df.rename(columns=column_rename_mapping, inplace=True)
+    rename_map = {
+                  'filename': 'filename_full',
+                  'pprocess': 'parent_process_full',
+                  'sha256': 'file_hash'
+                 }
+    events_df.rename(columns=rename_map, inplace=True)
                     
     print("\tSplitting 'filename_full' into 'folder' and 'file' columns")
-    events_df[['folder', 'file']] = events_df['filename_full'].str.rpartition('\\').iloc[:, [0, 2]]
-    events_df['folder'] = events_df['folder'] + '\\'
+    _split = events_df['filename_full'].str.extract(r'^(?P<folder>.*[\\/])?(?P<file>[^\\/]+)$')
+    events_df[['folder', 'file']] = _split[['folder', 'file']].fillna({'folder': '', 'file': events_df['filename_full']})
 
     print("\tExtracting 'parent_process_name' column from 'parent_process_full' column")
-    events_df['parent_process_name'] = events_df['parent_process_full'].str.rpartition('\\')[2]
+    events_df['parent_process_name'] = events_df['parent_process_full'].str.extract(r'([^\\/]+)$')[0]
 
-    export_columns = ['file_hash', 'folder', 'file', 'filename_full', 'parent_process_name', 'parent_process_full', 'publisher', 'hostname']
     print('\tRemoving unused columns')
+    export_columns = ['file_hash', 
+                      'folder',
+                      'file', 
+                      'filename_full',
+                      'parent_process_name',
+                      'parent_process_full',
+                      'publisher',
+                      'hostname']
     events_df = events_df.loc[:, export_columns]
 
     print('Done processing data')
