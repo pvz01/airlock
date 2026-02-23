@@ -45,7 +45,7 @@ server_name: foo.bar.managedwhitelisting.com    # Required
 api_key: yourapikey                             # Required
 enforcement_readiness:                          # Required only if including one or more of the below
     lookback_days: 45                           # Optional - overrides the default (30 days)
-    policy_group_name:                          # Optional - skips selection prompt if match is found
+    policy_group_name: My Audit Mode Policy     # Optional - skips selection prompt if match is found
 '''
 
 ## IMPORT REQUIRED LIBRARIES ##
@@ -408,7 +408,7 @@ def main():
     print('\tRemoving unused columns', columns_to_remove)
     agents_df.drop(columns_to_remove, axis=1, inplace=True)
 
-    column_order = ['hostname', 'untrusted_7d', 'untrusted_15d', 'untrusted_30d', 'checkin_age', 'install_age']
+    column_order = ['hostname', 'untrusted_7d', 'untrusted_15d', 'untrusted_30d', 'checkin_age', 'install_age', 'agentid']
     print('\tReordering columns to', column_order)
     agents_df = agents_df[column_order]
 
@@ -417,7 +417,8 @@ def main():
                   'untrusted_15d': 'Simulated blocks (last 15 days)',
                   'untrusted_7d':  'Simulated blocks (last 7 days)',
                   'checkin_age':   'Days since last check-in',
-                  'install_age':   'Days since agent was installed'}
+                  'install_age':   'Days since agent was installed',
+                  'agentid': 'Device GUID (ClientId / AgentId)'}
     print('\tRenaming columns to human-friendly names')
     agents_df = agents_df.rename(columns=rename_map)
 
