@@ -17,7 +17,7 @@ server_name: foo.bar.managedwhitelisting.com
 api_key: yourapikey
 '''
 # To install dependencies, run this command:
-#     pip install requests pyyaml pandas
+#     pip install requests pyyaml pandas openpyxl
 
 
 # CONFIGURATION
@@ -34,14 +34,15 @@ sleep_time = 60
 # Define whether the output file should include a second sheet (tab) with the "singles", meaning the devices that are not showing signs of agentid collission
 include_singles = True
 
-# Define whether to take action and clean up the duplicates by removing the associated agentids from the server
-enable_remediation = True
+# Enable removal of duplicate agentids and persist results to CSV log
+enable_remediation = False
+removals_log_file = 'agent_removals_log.csv'
 
  
 # RUNTIME
  
 # Import required libraries
-import requests, json, yaml, time, pandas
+import requests, json, yaml, time, pandas, os, csv
 from datetime import datetime, timezone
 
 # Get Airlock Server config
@@ -139,20 +140,53 @@ with pandas.ExcelWriter(export_filename) as writer:
 
 # Remove offending agentid values if remediation is enabled
 if enable_remediation:
-    
+
+    # Initialize log file with header if it does not already exist
+    if not os.path.exists(removals_log_file):
+        with open(removals_log_file, mode='w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['timestamp_utc', 'agentid', 'http_status'])
+        
+    # Get list of agentids to remove
     agentid_list = duplicates_df['agentid'].dropna().tolist()
     
     if len(agentid_list) > 0:
+
+        # Process duplicate agentids in batches to avoid overwhelming API
         batch_size = 10
-        print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Remediation is enabled. Proceeding with removal of', len(agentid_list), 'agentids from the server in batches of', batch_size, '.')
+        print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 
+              'Remediation is enabled. Proceeding with removal of', 
+              len(agentid_list), 'agentids from the server in batches of', batch_size, '.')
+        
         url = 'https://' + config['server_name'] + ':3129/v1/agent/remove'
         
         for i in range(0, len(agentid_list), batch_size):
             batch = agentid_list[i:i + batch_size]
             payload = {'agentid': batch}
+            
             time.sleep(1)
-            print(datetime.now(timezone.utc).strftime("%H:%M:%S"), f'Requesting removal of {len(batch)} agentids:', batch)
-            response = requests.post(url, headers=headers, json=payload, verify=True)
-            print(datetime.now(timezone.utc).strftime("%H:%M:%S"), response, response.text)
+            print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 
+                  f'Requesting removal of {len(batch)} agentids:', batch)
+            
+            try:
+                # Attempt removal request; capture HTTP status for logging
+                response = requests.post(url, headers=headers, json=payload, verify=True)
+                status_code = response.status_code
+                print(datetime.now(timezone.utc).strftime("%H:%M:%S"), response, response.text)
+            
+            except Exception as e:
+                # Treat request failures as ERROR and continue processing remaining batches
+                status_code = 'ERROR'
+                print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Request failed:', str(e))
+            
+            # Log each agentid individually
+            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            
+            with open(removals_log_file, mode='a', newline='') as f:
+                writer = csv.writer(f)
+                
+                # Persist each agentid result individually for audit and traceability
+                for agentid in batch:
+                    writer.writerow([timestamp, agentid, status_code])
 
 print(datetime.now(timezone.utc).strftime("%H:%M:%S"), 'Done.')
