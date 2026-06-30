@@ -1,12 +1,13 @@
-
 *.ipynb
+.ipynb_checkpoints/*
 *.xlsx
+*.docx
+*.pptx
 *.csv
 *.txt
 *.json
 *.env
 *.yaml
 *.xml
-.DS_Store
-*.docx
 *.pdf
+.DS_Store
