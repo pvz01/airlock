@@ -20,7 +20,7 @@ Output includes:
 
 - Policy group list (JSON)
 - Individual policy group policy configuration (JSON)
-- Paths, publishers and processes for each policy group (portable XML)
+- Paths, publishers and processes for each policy group (portable XML + TXT)
 - Allowlists, baselines, and blocklists for each policy group (TXT)
 - Referenced allowlists, baselines and blocklists (portable XML)
 
@@ -130,6 +130,50 @@ def save_name_list(path, items):
         text += '\n'
 
     save_text(path, text)
+
+
+def build_simple_name_txt(items, normalize_paths=False):
+    """Build TXT with one name per line."""
+    names = []
+
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+
+        name = item.get('name')
+
+        if name:
+            if normalize_paths:
+                name = normalize_windows_path(name)
+
+            names.append(str(name))
+
+    text = '\n'.join(names)
+
+    if text:
+        text += '\n'
+
+    return text
+
+
+def build_processes_txt(pprocesses, gprocesses):
+    """Build TXT with one process per line and human-readable process type."""
+    lines = []
+
+    for process in pprocesses or []:
+        if isinstance(process, dict) and process.get('name'):
+            lines.append(f'{process.get("name")} (Parent Process)')
+
+    for process in gprocesses or []:
+        if isinstance(process, dict) and process.get('name'):
+            lines.append(f'{process.get("name")} (Grandparent Process)')
+
+    text = '\n'.join(lines)
+
+    if text:
+        text += '\n'
+
+    return text
 
 
 def cdata(value):
@@ -334,7 +378,13 @@ def main():
     print('---------------------------')
     print(f'Server:     {args.server}')
     print('Port:       3129')
+    print(f"API key:    ending in '{args.api_key[-4:]}'")
     print(f'Output dir: {output_dir}')
+    print('Folders:')
+    print('  policies/')
+    print('  allowlists/')
+    print('  baselines/')
+    print('  blocklists/')
     print()
 
     print('[1/3] Downloading policy group list...')
@@ -359,19 +409,20 @@ def main():
         'blocklist': {},
     }
 
-    for group in groups:
+    for group_number, group in enumerate(groups, start=1):
         group_id = group.get('groupid') or group.get('id')
         group_name = group.get('name') or group.get('groupname') or group_id
 
         if not group_id:
-            print('      Skipping group with no groupid/id.')
+            print(f'      Group {group_number} of {len(groups)}: skipping group with no groupid/id.')
+            print()
             continue
 
         safe_group_name = safe_filename(group_name)
         group_output_dir = os.path.join(policies_dir, safe_group_name)
         os.makedirs(group_output_dir, exist_ok=True)
 
-        print(f'      Group: {group_name} ({group_id})')
+        print(f'      Group {group_number} of {len(groups)}: {group_name} ({group_id})')
 
         response = post(
             args.server,
@@ -385,18 +436,28 @@ def main():
         policy_body = get_policy_body(policy_json)
 
         json_path = os.path.join(group_output_dir, f'{safe_group_name}_policies.json')
-        paths_path = os.path.join(group_output_dir, f'{safe_group_name}_paths.xml')
-        publishers_path = os.path.join(group_output_dir, f'{safe_group_name}_publishers.xml')
-        processes_path = os.path.join(group_output_dir, f'{safe_group_name}_processes.xml')
+
+        paths_xml_path = os.path.join(group_output_dir, f'{safe_group_name}_paths.xml')
+        publishers_xml_path = os.path.join(group_output_dir, f'{safe_group_name}_publishers.xml')
+        processes_xml_path = os.path.join(group_output_dir, f'{safe_group_name}_processes.xml')
+
+        paths_txt_path = os.path.join(group_output_dir, f'{safe_group_name}_paths.txt')
+        publishers_txt_path = os.path.join(group_output_dir, f'{safe_group_name}_publishers.txt')
+        processes_txt_path = os.path.join(group_output_dir, f'{safe_group_name}_processes.txt')
 
         allowlists_txt_path = os.path.join(group_output_dir, f'{safe_group_name}_allowlists.txt')
         baselines_txt_path = os.path.join(group_output_dir, f'{safe_group_name}_baselines.txt')
         blocklists_txt_path = os.path.join(group_output_dir, f'{safe_group_name}_blocklists.txt')
 
         save_json(json_path, policy_json)
-        save_text(paths_path, build_paths_xml(policy_body.get('paths')))
-        save_text(publishers_path, build_publishers_xml(policy_body.get('publishers')))
-        save_text(processes_path, build_processes_xml(policy_body.get('pprocesses'), policy_body.get('gprocesses')))
+
+        save_text(paths_xml_path, build_paths_xml(policy_body.get('paths')))
+        save_text(publishers_xml_path, build_publishers_xml(policy_body.get('publishers')))
+        save_text(processes_xml_path, build_processes_xml(policy_body.get('pprocesses'), policy_body.get('gprocesses')))
+
+        save_text(paths_txt_path, build_simple_name_txt(policy_body.get('paths'), normalize_paths=True))
+        save_text(publishers_txt_path, build_simple_name_txt(policy_body.get('publishers')))
+        save_text(processes_txt_path, build_processes_txt(policy_body.get('pprocesses'), policy_body.get('gprocesses')))
 
         save_name_list(allowlists_txt_path, policy_body.get('applications'))
         save_name_list(baselines_txt_path, policy_body.get('baselines'))
@@ -406,13 +467,18 @@ def main():
         merge_refs(all_package_refs, refs)
 
         print(f'        Saved: {json_path}')
-        print(f'        Saved: {paths_path}')
-        print(f'        Saved: {publishers_path}')
-        print(f'        Saved: {processes_path}')
+        print(f'        Saved: {paths_xml_path}')
+        print(f'        Saved: {publishers_xml_path}')
+        print(f'        Saved: {processes_xml_path}')
+        print(f'        Saved: {paths_txt_path}')
+        print(f'        Saved: {publishers_txt_path}')
+        print(f'        Saved: {processes_txt_path}')
         print(f'        Saved: {allowlists_txt_path}')
         print(f'        Saved: {baselines_txt_path}')
         print(f'        Saved: {blocklists_txt_path}')
+        print()
 
+    print('      Completed policy group export.')
     print()
     print('      Unique referenced reusable packages found:')
     print(f'        Allowlists: {len(all_package_refs["allowlist"])}')
@@ -445,11 +511,15 @@ def main():
 
     for package_type, packages in all_package_refs.items():
         config = export_config[package_type]
+        total_packages = len(packages)
 
-        print(f'      {config["label"]}s: {len(packages)}')
+        print(f'      {config["label"]}s: {total_packages}')
 
-        for package_id, package_name in packages.items():
-            print(f'        Exporting {package_name} ({package_id})...')
+        for package_number, (package_id, package_name) in enumerate(packages.items(), start=1):
+            print(
+                f'        {config["label"]} {package_number} of {total_packages}: '
+                f'{package_name} ({package_id})'
+            )
 
             response = post(
                 args.server,
@@ -466,8 +536,17 @@ def main():
 
             print(f'          Saved: {path}')
 
+        print()
+
+    print('Export complete.')
     print()
-    print('Done.')
+    print(f'Output folder: {output_dir}')
+    print()
+    print('Summary:')
+    print(f'  Policy groups : {len(groups)}')
+    print(f'  Allowlists    : {len(all_package_refs["allowlist"])}')
+    print(f'  Baselines     : {len(all_package_refs["baseline"])}')
+    print(f'  Blocklists    : {len(all_package_refs["blocklist"])}')
 
 
 if __name__ == '__main__':
