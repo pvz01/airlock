@@ -11,3 +11,5 @@
 *.xml
 *.pdf
 .DS_Store
+airlock_policy_export_*/
+*.zip
