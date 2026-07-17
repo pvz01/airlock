@@ -15,9 +15,11 @@ audit's own guardrails, not by self-attestation alone:
    `add`/`remove`/`approve`/`new`/`move`/`set*` role was ever granted.
 2. **Independent post-hoc log reconciliation** — a fresh pull of the server-side activity log,
    filtered to mutating action types and cross-checked against the audit key's own identity for
-   the full engagement window, confirms zero mutating actions were attributed to it. (This
-   reconciliation is the audit's final task packet; see the appendix for its completion status at
-   the time this report was written.)
+   the full engagement window, confirms zero mutating actions were attributed to it: of 1,142
+   admin-activity rows logged across the full engagement window, 19 were attributable to the audit
+   identity, and zero of those 19 classified as mutating (all were `Login` and one-time account-
+   provisioning actions). See the appendix for full detail, including one non-mutating observation
+   flagged for the client's awareness.
 
 Every artifact in this repository and in the audit's broader workpapers is a **proposal**. Policy
 groups marked "proposed" do not exist in Airlock. Allowlists marked "ready for creation" have not
@@ -357,3 +359,33 @@ than silently dropped:
 Every other packet across Phase 0 through Phase 4 completed to its stated acceptance criteria.
 See `audit/findings_register.md` for the consolidated findings and `audit/migration_package_schema.md`
 for the migration design's structure.
+
+### TP-43 — final guardrail self-check
+
+TP-43 (the packet described in §0 above) is now complete, with one sub-item honestly reported as
+still open rather than closed by assumption:
+
+- **API key scope, method (a) — console role-list read-back: still open.** This is a console-only
+  view with no API surface (the same gap TP-17 already identified). It requires the client's own
+  console-admin to confirm the audit key's assigned Permission Group holds exactly the read-only
+  role list in §2 of the engagement guardrails, and nothing from the add/remove/approve/move/set
+  family. This audit cannot close this item itself and does not claim to.
+- **API key scope, method (b) — own-script endpoint self-audit: clean.** Every endpoint path
+  referenced anywhere in every script this engagement wrote and ran was enumerated directly; zero
+  mutating-family endpoints appear in any of them, called or even mentioned in a comment.
+- **Server-log reconciliation: clean, with one observation flagged for awareness, not alarm.** Of
+  19 engagement-window log rows attributable to the audit service account, zero were mutating.
+  Two were one-time account-provisioning actions (2FA enablement, API key generation) that predate
+  this audit's own first live call. Seventeen were `Login` events: eight matching this audit's own
+  eight script-execution sessions (one per packet run), six successful **browser-based console
+  logins** (Microsoft Edge/Chrome, same source IP, tightly clustered around the account-provisioning
+  timestamps), and one rejected browser-login attempt. The six browser logins are atypical for a
+  service account, which is normally API-only — this audit did not perform them (no script here has
+  browser/console-login capability) and cannot independently confirm who did, though the timing
+  strongly suggests they are part of the same initial account setup/verification as the 2FA and
+  API-key-generation events, not ongoing use. No action beyond `Login` followed any of the six. This
+  is reported as a factual observation, not a resolved non-issue — worth a quick confirmation from
+  whoever provisioned the service account.
+
+Full detail, including the raw row-level breakdown: `files/phase2-findings/tp43_guardrail_self_check.md`
+in the audit's session workpapers (not committed — contains identity-level log detail per guardrail 5).
