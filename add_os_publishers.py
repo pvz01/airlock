@@ -26,6 +26,33 @@ api_key: yourapikey
 # Import required libraries
 import requests, json, urllib3, yaml, os, sys
 
+# Implement CLI flag to allow disabling of SSL verification for lab environments
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--insecure', action='store_true', help='Disable SSL certificate verification (NOT for production)')
+_args, _unknown = parser.parse_known_args()
+VERIFY_SSL = not _args.insecure
+if not VERIFY_SSL:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    sys.stderr.write(
+        "\n\033[91m"
+        "!!! INSECURE MODE ENABLED !!!\n"
+        "SSL certificate verification is DISABLED.\n"
+        "\n"
+        "This means:\n"
+        "  • Your connection is not secure.\n"
+        "  • An attacker on the network could intercept or modify traffic\n"
+        "    and steal your API key and data (man-in-the-middle attack).\n"
+        "\n"
+        "If you used this flag by mistake:\n"
+        "  • STOP using --insecure immediately.\n"
+        "  • REGENERATE your API key in the management console to invalidate the old one.\n"
+        "\n"
+        "Use ONLY in trusted lab/dev environments or when testing with self-signed certificates.\n"
+        "Re-run without --insecure for safe operation.\n"
+        "\033[0m\n"
+    )
+
 # Method that reads configuration from a YAML file on disk
 def read_config(config_file_name='airlock.yaml'):
     if not os.path.exists(config_file_name):
@@ -40,7 +67,7 @@ def read_config(config_file_name='airlock.yaml'):
 def get_groups(server_name, api_key):
     request_url = 'https://' + server_name + ':3129/v1/group'
     request_headers = {'X-APIKey': api_key}
-    response = requests.post(request_url, headers=request_headers)
+    response = requests.post(request_url, headers=request_headers, verify=VERIFY_SSL)
     #print(request_url, response)
     groups = response.json()['response']['groups']
     print(len(groups), 'policy groups downloaded from server')
@@ -61,7 +88,7 @@ def get_trusted_publishers(group, server_name, api_key):
     publisher_names = []
     request_url = 'https://' + server_name + ':3129/v1/group/policies?groupid=' + group['groupid']
     request_headers = {'X-APIKey': api_key}
-    response = requests.post(request_url, headers=request_headers)
+    response = requests.post(request_url, headers=request_headers, verify=VERIFY_SSL)
     #print(request_url, response)
     publishers = response.json()['response']['publishers']
     if publishers is not None:
@@ -77,7 +104,7 @@ def add_publishers(publisher_list, group, server_name, api_key):
     request_headers = {'X-APIKey': api_key}
     request_body = {'groupid': group['groupid'],
                     'publisher': publisher_list}
-    response = requests.post(request_url, headers=request_headers, json=request_body)
+    response = requests.post(request_url, headers=request_headers, json=request_body, verify=VERIFY_SSL)
     #print(request_url, request_body, response)
 
 # Get Airlock Server config
